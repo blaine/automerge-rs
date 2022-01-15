@@ -1,5 +1,5 @@
 use core::num::NonZeroUsize;
-use std::{convert::TryInto, marker::PhantomData};
+use std::convert::TryInto;
 
 mod leb128;
 use crate::{ActorId, ChangeHash};
@@ -10,33 +10,6 @@ pub(crate) type ParseResult<'a, O> = Result<(&'a [u8], O), ParseError<ErrorKind>
 
 pub(super) trait Parser<'a, O> {
     fn parse(&mut self, input: &'a [u8]) -> ParseResult<'a, O>;
-
-    fn map<G, O2>(self, g: G) -> Map<Self, G, O>
-    where
-        G: FnMut(O) -> O2,
-        Self: Sized,
-    {
-        Map {
-            f: self,
-            g,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-pub(super) struct Map<F, G, O1> {
-    f: F,
-    g: G,
-    _phantom: PhantomData<O1>,
-}
-
-impl<'a, O1, O2, F: Parser<'a, O1>, G: Fn(O1) -> O2> Parser<'a, O2> for Map<F, G, O1> {
-    fn parse(&mut self, input: &'a[u8]) -> ParseResult<'a, O2> {
-        match self.f.parse(input) {
-            Err(e) => Err(e),
-            Ok((i, o)) => Ok((i, (self.g)(o))),
-        }
-    }
 }
 
 impl<'a, O, F> Parser<'a, O> for F
@@ -52,6 +25,7 @@ where
 pub(crate) enum ParseError<E> {
     Error(E),
     Incomplete(Needed),
+    InvalidUtf8,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -184,4 +158,10 @@ pub(super) fn change_hash(input: &[u8]) -> ParseResult<ChangeHash> {
     let (i, bytes) = take_n(32, input)?;
     let byte_arr: ChangeHash = bytes.try_into().expect("we checked the length above");
     Ok((i, byte_arr))
+}
+
+pub(super) fn utf_8(len: usize, input: &[u8]) -> ParseResult<String> {
+    let (i, bytes) = take_n(len, input)?;
+    let result = String::from_utf8(bytes.to_vec()).map_err(|_| ParseError::InvalidUtf8)?;
+    Ok((i,result))
 }
