@@ -28,6 +28,7 @@ mod automerge;
 mod change;
 mod clock;
 mod columnar;
+mod columnar_2;
 mod decoding;
 mod encoding;
 mod error;
@@ -42,6 +43,8 @@ mod types;
 mod value;
 #[cfg(feature = "optree-visualisation")]
 mod visualisation;
+
+pub use columnar_2::do_the_thing;
 
 pub use crate::automerge::Automerge;
 pub use change::{decode_change, Change};
