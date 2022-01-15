@@ -1,4 +1,4 @@
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+#[derive(Eq, PartialEq, Clone, Copy)]
 pub(super) struct ColumnSpec(u32);
 
 impl ColumnSpec {
@@ -26,6 +26,13 @@ impl ColumnSpec {
     }
 }
 
+impl std::fmt::Debug for ColumnSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ColumnSpec({}, id: {:?}, type: {}, deflate: {}",
+            self.0, self.id(), self.col_type(), self.deflate())
+    }
+}
+
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
 pub(super) struct ColumnId(u32);
 
@@ -39,6 +46,21 @@ pub(super) enum ColumnType {
     String,
     ValueMetadata,
     Value,
+}
+
+impl std::fmt::Display for ColumnType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Group => write!(f, "{}", "Group"),
+            Self::Actor => write!(f, "{}", "Actor"),
+            Self::Integer => write!(f, "{}", "Integer"),
+            Self::DeltaInteger => write!(f, "{}", "DeltaInteger"),
+            Self::Boolean => write!(f, "{}", "Boolean"),
+            Self::String => write!(f, "{}", "String"),
+            Self::ValueMetadata => write!(f, "{}", "ValueMetadata"),
+            Self::Value => write!(f, "{}", "Value"),
+        }
+    }
 }
 
 impl From<u8> for ColumnType {
@@ -82,6 +104,12 @@ impl From<u32> for ColumnSpec {
 impl From<ColumnSpec> for u32 {
     fn from(spec: ColumnSpec) -> Self {
         spec.0
+    }
+}
+
+impl From<[u8; 4]> for ColumnSpec {
+    fn from(raw: [u8; 4]) -> Self {
+        u32::from_be_bytes(raw).into() 
     }
 }
 

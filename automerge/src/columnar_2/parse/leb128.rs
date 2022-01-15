@@ -1,25 +1,31 @@
 use core::{mem::size_of, num::NonZeroUsize};
 
-use super::{ErrorKind, Input, Needed, ParseError, ParseResult};
+use super::{ErrorKind, Needed, ParseError, ParseResult};
 
-/// Recognizes an leb128 encoded integer which can fit in a u64
-pub(in crate::columnar_2) fn leb128_u64<'a>(input: Input<'a>) -> ParseResult<'a, u64> {
-    let mut res = 0;
-    let mut shift = 0;
+macro_rules! impl_leb {
+    ($parser_name: ident, $ty: ty) => {
+        pub(in crate::columnar_2) fn $parser_name<'a>(input: &'a [u8]) -> ParseResult<'a, $ty> {
+            let mut res = 0;
+            let mut shift = 0;
 
-    for (pos, byte) in input.iter().enumerate() {
-        if (byte & 0x80) == 0 {
-            res |= (*byte as u64) << shift;
-            return Ok((&input[pos + 1..], res));
-        } else if pos == leb128_size::<u64>() - 1 {
-            return Err(ParseError::Error(ErrorKind::Leb128TooLarge));
-        } else {
-            res |= ((byte & 0x7F) as u64) << shift;
+            for (pos, byte) in input.iter().enumerate() {
+                if (byte & 0x80) == 0 {
+                    res |= (*byte as $ty) << shift;
+                    return Ok((&input[pos + 1..], res));
+                } else if pos == leb128_size::<$ty>() - 1 {
+                    return Err(ParseError::Error(ErrorKind::Leb128TooLarge));
+                } else {
+                    res |= ((byte & 0x7F) as $ty) << shift;
+                }
+                shift += 7;
+            }
+            Err(ParseError::Incomplete(NEED_ONE))
         }
-        shift += 7;
     }
-    Err(ParseError::Incomplete(NEED_ONE))
 }
+
+impl_leb!(leb128_u64, u64);
+impl_leb!(leb128_u32, u32);
 
 /// Maximum LEB128-encoded size of an integer type
 const fn leb128_size<T>() -> usize {
@@ -31,10 +37,11 @@ const NEED_ONE: Needed = Needed::Size(unsafe { NonZeroUsize::new_unchecked(1) })
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryFrom;
     use super::*;
 
     #[test]
-    fn leb_128_u64() {
+    fn leb_128_unsigned() {
         let scenarios: Vec<(&'static [u8], ParseResult<u64>)> = vec![
             (&[0b00000001_u8], Ok((&[], 1))),
             (&[0b10000001_u8], Err(ParseError::Incomplete(NEED_ONE))),
@@ -45,13 +52,26 @@ mod tests {
                 Err(ParseError::Error(ErrorKind::Leb128TooLarge)),
             ),
         ];
-        for (index, (input, expected)) in scenarios.into_iter().enumerate() {
+        for (index, (input, expected)) in scenarios.clone().into_iter().enumerate() {
             let result = leb128_u64(input);
             if result != expected {
                 panic!(
-                    "Scenario {} failed: expected {:?} got {:?}",
+                    "Scenario {} failed for u64: expected {:?} got {:?}",
                     index + 1,
                     expected,
+                    result
+                );
+            }
+        }
+
+        for (index, (input, expected)) in scenarios.into_iter().enumerate() {
+            let u32_expected = expected.map(|(i, e)| (i, u32::try_from(e).unwrap()));
+            let result = leb128_u32(input);
+            if result != u32_expected {
+                panic!(
+                    "Scenario {} failed for u32: expected {:?} got {:?}",
+                    index + 1,
+                    u32_expected,
                     result
                 );
             }
