@@ -3,7 +3,7 @@ use super::{parse, column_metadata::ColumnMetadata};
 use crate::{ActorId, ChangeHash};
 
 #[derive(Debug)]
-pub(super) struct Document<'a> {
+pub(crate) struct Document<'a> {
     actors: Vec<ActorId>,
     heads: Vec<ChangeHash>,
     op_metadata: ColumnMetadata,
@@ -13,7 +13,7 @@ pub(super) struct Document<'a> {
 }
 
 impl<'a> Document<'a> {
-    pub(super) fn parse(input: &'a [u8]) -> parse::ParseResult<Document<'a>> {
+    pub(crate) fn parse(input: &'a [u8]) -> parse::ParseResult<Document<'a>> {
         let (i, actors) = parse::length_prefixed(parse::leb128_u64, parse::actor_id)(input)?;
         let (i, heads) = parse::length_prefixed(parse::leb128_u64, parse::change_hash)(i)?;
         let (i, change_meta) = ColumnMetadata::parse(i)?;

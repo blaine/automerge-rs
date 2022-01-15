@@ -6,16 +6,16 @@ use super::{
 };
 
 #[derive(Debug)]
-pub(super) struct Column {
+pub(crate) struct Column {
     spec: ColumnSpec,
     data: Range<usize>,
 }
 
 #[derive(Debug)]
-pub(super) struct ColumnMetadata(Vec<Column>);
+pub(crate) struct ColumnMetadata(Vec<Column>);
 
 impl ColumnMetadata {
-    pub(super) fn parse(input: &[u8]) -> parse::ParseResult<ColumnMetadata> {
+    pub(crate) fn parse(input: &[u8]) -> parse::ParseResult<ColumnMetadata> {
         let i = input;
         let (i, num_columns) = parse::leb128_u64(i)?;
         let (i, specs_and_lens) = parse::apply_n(
@@ -37,7 +37,7 @@ impl ColumnMetadata {
         Ok((i, ColumnMetadata(columns)))
     }
 
-    pub(super) fn total_column_len(&self) -> usize {
+    pub(crate) fn total_column_len(&self) -> usize {
         self.0.iter().map(|c| c.data.len()).sum()
     }
 }

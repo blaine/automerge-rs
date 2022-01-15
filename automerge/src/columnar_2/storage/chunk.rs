@@ -4,8 +4,8 @@ use std::convert::{TryFrom, TryInto};
 
 const MAGIC_BYTES: [u8; 4] = [0x85, 0x6f, 0x4a, 0x83];
 
-#[derive(Debug)]
-pub(super) enum ChunkType {
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ChunkType {
     Document,
     Change,
     Compressed,
@@ -24,8 +24,8 @@ impl TryFrom<u8> for ChunkType {
     }
 }
 
-#[derive(Debug)]
-pub(super) struct CheckSum([u8; 4]);
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CheckSum([u8; 4]);
 
 impl From<[u8; 4]> for CheckSum {
     fn from(raw: [u8; 4]) -> Self {
@@ -34,14 +34,14 @@ impl From<[u8; 4]> for CheckSum {
 }
 
 #[derive(Debug)]
-pub(super) struct Chunk<'a> { 
+pub(crate) struct Chunk<'a> { 
     pub(super) typ: ChunkType,
     pub(super) checksum: CheckSum,
     pub(super) data: &'a [u8],
 }
 
 impl<'a> Chunk<'a> {
-    pub(super) fn parse(input: &'a[u8]) -> parse::ParseResult<Chunk<'a>> {
+    pub(crate) fn parse(input: &'a[u8]) -> parse::ParseResult<Chunk<'a>> {
         let (i, magic) = parse::take4(input)?;
         if magic != MAGIC_BYTES {
             return Err(parse::ParseError::Error(parse::ErrorKind::InvalidMagicBytes));
@@ -58,5 +58,17 @@ impl<'a> Chunk<'a> {
             checksum: checksum_bytes.into(),
             data,
         }))
+    }
+
+    pub(crate) fn typ(&self) -> ChunkType {
+        self.typ
+    }
+
+    pub(crate) fn checksum(&self) -> CheckSum {
+        self.checksum
+    }
+
+    pub(crate) fn data(&self) -> &[u8] {
+        self.data
     }
 }

@@ -1,8 +1,8 @@
 #[derive(Eq, PartialEq, Clone, Copy)]
-pub(super) struct ColumnSpec(u32);
+pub(crate) struct ColumnSpec(u32);
 
 impl ColumnSpec {
-    pub(super) fn new(id: ColumnId, col_type: ColumnType, deflate: bool) -> Self {
+    pub(crate) fn new(id: ColumnId, col_type: ColumnType, deflate: bool) -> Self {
         let mut raw = id.0 << 4;
         raw |= u8::from(col_type) as u32;
         if deflate {
@@ -13,15 +13,15 @@ impl ColumnSpec {
         ColumnSpec(raw)
     }
 
-    pub(super) fn col_type(&self) -> ColumnType {
+    pub(crate) fn col_type(&self) -> ColumnType {
         self.0.to_be_bytes()[3].into()
     }
 
-    pub(super) fn id(&self) -> ColumnId {
+    pub(crate) fn id(&self) -> ColumnId {
         ColumnId(self.0 >> 4)
     }
 
-    pub(super) fn deflate(&self) -> bool {
+    pub(crate) fn deflate(&self) -> bool {
         self.0 & 0b00001000 > 0
     }
 }
@@ -34,10 +34,10 @@ impl std::fmt::Debug for ColumnSpec {
 }
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
-pub(super) struct ColumnId(u32);
+pub(crate) struct ColumnId(u32);
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
-pub(super) enum ColumnType {
+pub(crate) enum ColumnType {
     Group,
     Actor,
     Integer,

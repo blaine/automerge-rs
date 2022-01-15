@@ -1,17 +1,12 @@
-mod chunk;
-mod column_specification;
-mod column_metadata;
-mod document;
-mod parse;
-
+mod storage;
 
 pub fn do_the_thing(data: &[u8]) {
-    match chunk::Chunk::parse(data) {
+    match storage::Chunk::parse(data) {
         Ok((_, d)) => {
             println!("Chunk: {:?}", d);
-            match d.typ {
-                chunk::ChunkType::Document => {
-                    match document::Document::parse(d.data) {
+            match d.typ() {
+                storage::ChunkType::Document => {
+                    match storage::Document::parse(d.data()) {
                         Ok((_, doc)) => { println!("Parse document: {:?}", doc); },
                         Err(e) => { eprintln!("Error parsing document: {:?}", e); },
                     }

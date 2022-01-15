@@ -6,7 +6,7 @@ use crate::{ActorId, ChangeHash};
 
 pub(in crate::columnar_2) use self::leb128::{leb128_u64, leb128_u32};
 
-pub(super) type ParseResult<'a, O> = Result<(&'a [u8], O), ParseError<ErrorKind>>;
+pub(crate) type ParseResult<'a, O> = Result<(&'a [u8], O), ParseError<ErrorKind>>;
 
 pub(super) trait Parser<'a, O> {
     fn parse(&mut self, input: &'a [u8]) -> ParseResult<'a, O>;
@@ -49,19 +49,19 @@ where
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum ParseError<E> {
+pub(crate) enum ParseError<E> {
     Error(E),
     Incomplete(Needed),
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum Needed {
+pub(crate) enum Needed {
     Unknown,
     Size(NonZeroUsize),
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum ErrorKind {
+pub(crate) enum ErrorKind {
     Leb128TooLarge,
     InvalidMagicBytes,
     UnknownChunkType(u8),
