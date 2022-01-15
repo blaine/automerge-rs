@@ -3,7 +3,7 @@ use core::{mem::size_of, num::NonZeroUsize};
 use super::{ErrorKind, Input, Needed, ParseError, ParseResult};
 
 /// Recognizes an leb128 encoded integer which can fit in a u64
-fn parse_leb128_u64<'a>(input: Input<'a>) -> ParseResult<'a, u64> {
+pub(in crate::columnar_2) fn leb128_u64<'a>(input: Input<'a>) -> ParseResult<'a, u64> {
     let mut res = 0;
     let mut shift = 0;
 
@@ -46,7 +46,7 @@ mod tests {
             ),
         ];
         for (index, (input, expected)) in scenarios.into_iter().enumerate() {
-            let result = parse_leb128_u64(input);
+            let result = leb128_u64(input);
             if result != expected {
                 panic!(
                     "Scenario {} failed: expected {:?} got {:?}",

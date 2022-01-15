@@ -1,5 +1,3 @@
-use super::parse;
-
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
 pub(super) struct ColumnSpec(u32);
 
