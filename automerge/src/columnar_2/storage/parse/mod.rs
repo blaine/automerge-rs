@@ -39,6 +39,7 @@ pub(crate) enum ErrorKind {
     Leb128TooLarge,
     InvalidMagicBytes,
     UnknownChunkType(u8),
+    InvalidColumnMetadataSort,
 }
 
 impl std::fmt::Display for ErrorKind {
@@ -47,6 +48,7 @@ impl std::fmt::Display for ErrorKind {
             Self::Leb128TooLarge => write!(f, "invalid leb 128"),
             Self::InvalidMagicBytes => write!(f, "invalid magic bytes"),
             Self::UnknownChunkType(t) => write!(f, "unknown chunk type: {}", t),
+            Self::InvalidColumnMetadataSort => write!(f, "invalid sort of column metadata"),
         }
     }
 }

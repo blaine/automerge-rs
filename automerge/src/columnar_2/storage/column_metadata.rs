@@ -33,7 +33,10 @@ impl ColumnMetadata {
                 *offset = end;
                 Some(Column { spec, data })
             })
-            .collect();
+            .collect::<Vec<_>>();
+        if !are_normal_sorted(&columns) {
+            return Err(parse::ParseError::Error(parse::ErrorKind::InvalidColumnMetadataSort));
+        }
         Ok((i, ColumnMetadata(columns)))
     }
 
@@ -42,3 +45,13 @@ impl ColumnMetadata {
     }
 }
 
+fn are_normal_sorted(cols: &[Column]) -> bool {
+    if cols.len() > 1 {
+        for (i, col) in cols[1..].iter().enumerate() {
+            if col.spec.normalize() < cols[i].spec.normalize() {
+                return false;
+            }
+        }
+    }
+    true
+}

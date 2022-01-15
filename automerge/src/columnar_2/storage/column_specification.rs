@@ -24,7 +24,15 @@ impl ColumnSpec {
     pub(crate) fn deflate(&self) -> bool {
         self.0 & 0b00001000 > 0
     }
+
+    pub(crate) fn normalize(&self) -> Normalized {
+        Normalized(self.0 & 0b11110111)
+    }
 }
+
+#[derive(PartialEq, PartialOrd)]
+pub(crate) struct Normalized(u32);
+
 
 impl std::fmt::Debug for ColumnSpec {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -231,6 +239,10 @@ mod tests {
                     expected,
                     u32::from(deflated)
                 );
+            }
+
+            if deflated.normalize() != spec.normalize() {
+                panic!("Scenario {} failed normalize test", index + 1);
             }
         }
     }
