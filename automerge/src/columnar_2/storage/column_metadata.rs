@@ -1,9 +1,6 @@
 use std::ops::Range;
 
-use super::{
-    column_specification::ColumnSpec,
-    parse
-};
+use super::{super::ColumnSpec, parse};
 
 #[derive(Debug)]
 pub(crate) struct Column {
@@ -35,13 +32,19 @@ impl ColumnMetadata {
             })
             .collect::<Vec<_>>();
         if !are_normal_sorted(&columns) {
-            return Err(parse::ParseError::Error(parse::ErrorKind::InvalidColumnMetadataSort));
+            return Err(parse::ParseError::Error(
+                parse::ErrorKind::InvalidColumnMetadataSort,
+            ));
         }
         Ok((i, ColumnMetadata(columns)))
     }
 
     pub(crate) fn total_column_len(&self) -> usize {
         self.0.iter().map(|c| c.data.len()).sum()
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (ColumnSpec, Range<usize>)> + '_ {
+        self.0.iter().map(|c| (c.spec, c.data.clone()))
     }
 }
 

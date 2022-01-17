@@ -4,7 +4,7 @@ use std::convert::TryInto;
 mod leb128;
 use crate::{ActorId, ChangeHash};
 
-pub(in crate::columnar_2) use self::leb128::{leb128_u64, leb128_u32};
+pub(in crate::columnar_2) use self::leb128::{leb128_u32, leb128_u64};
 
 pub(crate) type ParseResult<'a, O> = Result<(&'a [u8], O), ParseError<ErrorKind>>;
 
@@ -14,7 +14,7 @@ pub(super) trait Parser<'a, O> {
 
 impl<'a, O, F> Parser<'a, O> for F
 where
-    F: FnMut(&'a[u8]) -> ParseResult<'a, O>,
+    F: FnMut(&'a [u8]) -> ParseResult<'a, O>,
 {
     fn parse(&mut self, input: &'a [u8]) -> ParseResult<'a, O> {
         (self)(input)
@@ -105,7 +105,7 @@ where
     move |input: &'a [u8]| {
         let (i, count) = f.parse(input)?;
         let mut res = Vec::new();
-        let mut input = i.clone();
+        let mut input = i;
         for _ in 0..count {
             match g.parse(input) {
                 Ok((i, e)) => {
@@ -121,12 +121,15 @@ where
     }
 }
 
-pub(super) fn tuple2<'a, F, E, G, H>(mut f: F, mut g: G) -> impl FnMut(&'a [u8]) -> ParseResult<(E, H)>
+pub(super) fn tuple2<'a, F, E, G, H>(
+    mut f: F,
+    mut g: G,
+) -> impl FnMut(&'a [u8]) -> ParseResult<(E, H)>
 where
     F: Parser<'a, E>,
     G: Parser<'a, H>,
 {
-    move |input: &'a[u8]| {
+    move |input: &'a [u8]| {
         let (i, one) = f.parse(input)?;
         let (i, two) = g.parse(i)?;
         Ok((i, (one, two)))
@@ -135,10 +138,10 @@ where
 
 pub(super) fn apply_n<'a, F, E>(n: usize, mut f: F) -> impl FnMut(&'a [u8]) -> ParseResult<Vec<E>>
 where
-    F: Parser<'a, E>
+    F: Parser<'a, E>,
 {
-    move |input: &'a[u8]| {
-        let mut i = input.clone();
+    move |input: &'a [u8]| {
+        let mut i = input;
         let mut result = Vec::new();
         for _ in 0..n {
             let (new_i, e) = f.parse(i)?;
@@ -165,5 +168,5 @@ pub(super) fn change_hash(input: &[u8]) -> ParseResult<ChangeHash> {
 pub(super) fn utf_8(len: usize, input: &[u8]) -> ParseResult<String> {
     let (i, bytes) = take_n(len, input)?;
     let result = String::from_utf8(bytes.to_vec()).map_err(|_| ParseError::InvalidUtf8)?;
-    Ok((i,result))
+    Ok((i, result))
 }

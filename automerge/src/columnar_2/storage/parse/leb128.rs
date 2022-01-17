@@ -21,7 +21,7 @@ macro_rules! impl_leb {
             }
             Err(ParseError::Incomplete(NEED_ONE))
         }
-    }
+    };
 }
 
 impl_leb!(leb128_u64, u64);
@@ -37,8 +37,8 @@ const NEED_ONE: Needed = Needed::Size(unsafe { NonZeroUsize::new_unchecked(1) })
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryFrom;
     use super::*;
+    use std::convert::TryFrom;
 
     #[test]
     fn leb_128_unsigned() {

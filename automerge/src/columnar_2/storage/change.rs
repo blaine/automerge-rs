@@ -1,6 +1,6 @@
 use crate::{ActorId, ChangeHash};
 
-use super::{ColumnMetadata, parse};
+use super::{parse, ColumnMetadata};
 
 #[derive(Debug)]
 pub(crate) struct Change<'a> {
@@ -12,7 +12,7 @@ pub(crate) struct Change<'a> {
     timestamp: u64,
     message: Option<String>,
     ops_meta: ColumnMetadata,
-    ops_data: &'a[u8],
+    ops_data: &'a [u8],
     extra_bytes: &'a [u8],
 }
 
@@ -28,17 +28,24 @@ impl<'a> Change<'a> {
         let (i, other_actors) = parse::length_prefixed(parse::leb128_u64, parse::actor_id)(i)?;
         let (i, ops_meta) = ColumnMetadata::parse(i)?;
         let (i, ops_data) = parse::take_n(ops_meta.total_column_len(), i)?;
-        Ok((&[], Change {
-            dependencies: deps,
-            actor,
-            other_actors,
-            seq,
-            start_op,
-            timestamp,
-            message: if message.is_empty() { None } else { Some(message) },
-            ops_meta,
-            ops_data,
-            extra_bytes: i,
-        }))
+        Ok((
+            &[],
+            Change {
+                dependencies: deps,
+                actor,
+                other_actors,
+                seq,
+                start_op,
+                timestamp,
+                message: if message.is_empty() {
+                    None
+                } else {
+                    Some(message)
+                },
+                ops_meta,
+                ops_data,
+                extra_bytes: i,
+            },
+        ))
     }
 }

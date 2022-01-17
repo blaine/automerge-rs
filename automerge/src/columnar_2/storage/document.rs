@@ -1,15 +1,15 @@
-use super::{parse, column_metadata::ColumnMetadata};
+use super::{column_metadata::ColumnMetadata, parse};
 
 use crate::{ActorId, ChangeHash};
 
 #[derive(Debug)]
 pub(crate) struct Document<'a> {
-    actors: Vec<ActorId>,
-    heads: Vec<ChangeHash>,
-    op_metadata: ColumnMetadata,
-    op_bytes: &'a [u8],
-    change_metadata: ColumnMetadata,
-    change_bytes: &'a [u8],
+    pub(crate) actors: Vec<ActorId>,
+    pub(crate) heads: Vec<ChangeHash>,
+    pub(crate) op_metadata: ColumnMetadata,
+    pub(crate) op_bytes: &'a [u8],
+    pub(crate) change_metadata: ColumnMetadata,
+    pub(crate) change_bytes: &'a [u8],
 }
 
 impl<'a> Document<'a> {

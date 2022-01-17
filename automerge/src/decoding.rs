@@ -122,6 +122,12 @@ pub(crate) struct BooleanDecoder<'a> {
     count: usize,
 }
 
+impl<'a> BooleanDecoder<'a> {
+    pub(crate) fn done(&self) -> bool {
+        self.decoder.done()
+    }
+}
+
 impl<'a> From<Cow<'a, [u8]>> for Decoder<'a> {
     fn from(bytes: Cow<'a, [u8]>) -> Decoder<'a> {
         Decoder::new(bytes)
@@ -162,6 +168,12 @@ pub(crate) struct RleDecoder<'a, T> {
     last_value: Option<T>,
     count: isize,
     literal: bool,
+}
+
+impl<'a, T> RleDecoder<'a, T> {
+    pub(crate) fn done(&self) -> bool {
+        self.decoder.done()
+    }
 }
 
 impl<'a, T> From<Cow<'a, [u8]>> for RleDecoder<'a, T> {
@@ -227,6 +239,12 @@ where
 pub(crate) struct DeltaDecoder<'a> {
     rle: RleDecoder<'a, i64>,
     absolute_val: u64,
+}
+
+impl<'a> DeltaDecoder<'a> {
+    pub(crate) fn done(&self) -> bool {
+        self.rle.done()
+    }
 }
 
 impl<'a> From<Cow<'a, [u8]>> for DeltaDecoder<'a> {

@@ -33,16 +33,26 @@ impl ColumnSpec {
 #[derive(PartialEq, PartialOrd)]
 pub(crate) struct Normalized(u32);
 
-
 impl std::fmt::Debug for ColumnSpec {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ColumnSpec({}, id: {:?}, type: {}, deflate: {}",
-            self.0, self.id(), self.col_type(), self.deflate())
+        write!(
+            f,
+            "ColumnSpec(id: {:?}, type: {}, deflate: {})",
+            self.id(),
+            self.col_type(),
+            self.deflate()
+        )
     }
 }
 
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+#[derive(Eq, PartialEq, Clone, Copy)]
 pub(crate) struct ColumnId(u32);
+
+impl std::fmt::Debug for ColumnId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
 pub(crate) enum ColumnType {
@@ -59,14 +69,14 @@ pub(crate) enum ColumnType {
 impl std::fmt::Display for ColumnType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Group => write!(f, "{}", "Group"),
-            Self::Actor => write!(f, "{}", "Actor"),
-            Self::Integer => write!(f, "{}", "Integer"),
-            Self::DeltaInteger => write!(f, "{}", "DeltaInteger"),
-            Self::Boolean => write!(f, "{}", "Boolean"),
-            Self::String => write!(f, "{}", "String"),
-            Self::ValueMetadata => write!(f, "{}", "ValueMetadata"),
-            Self::Value => write!(f, "{}", "Value"),
+            Self::Group => write!(f, "Group"),
+            Self::Actor => write!(f, "Actor"),
+            Self::Integer => write!(f, "Integer"),
+            Self::DeltaInteger => write!(f, "DeltaInteger"),
+            Self::Boolean => write!(f, "Boolean"),
+            Self::String => write!(f, "String"),
+            Self::ValueMetadata => write!(f, "ValueMetadata"),
+            Self::Value => write!(f, "Value"),
         }
     }
 }
@@ -117,7 +127,7 @@ impl From<ColumnSpec> for u32 {
 
 impl From<[u8; 4]> for ColumnSpec {
     fn from(raw: [u8; 4]) -> Self {
-        u32::from_be_bytes(raw).into() 
+        u32::from_be_bytes(raw).into()
     }
 }
 

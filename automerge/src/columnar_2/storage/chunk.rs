@@ -29,35 +29,40 @@ pub(crate) struct CheckSum([u8; 4]);
 
 impl From<[u8; 4]> for CheckSum {
     fn from(raw: [u8; 4]) -> Self {
-        CheckSum(raw) 
+        CheckSum(raw)
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct Chunk<'a> { 
+pub(crate) struct Chunk<'a> {
     pub(super) typ: ChunkType,
     pub(super) checksum: CheckSum,
     pub(super) data: &'a [u8],
 }
 
 impl<'a> Chunk<'a> {
-    pub(crate) fn parse(input: &'a[u8]) -> parse::ParseResult<Chunk<'a>> {
+    pub(crate) fn parse(input: &'a [u8]) -> parse::ParseResult<Chunk<'a>> {
         let (i, magic) = parse::take4(input)?;
         if magic != MAGIC_BYTES {
-            return Err(parse::ParseError::Error(parse::ErrorKind::InvalidMagicBytes));
+            return Err(parse::ParseError::Error(
+                parse::ErrorKind::InvalidMagicBytes,
+            ));
         }
         let (i, checksum_bytes) = parse::take4(i)?;
         let (i, raw_chunk_type) = parse::take1(i)?;
-        let chunk_type: ChunkType = raw_chunk_type.try_into().map_err(|e| parse::ParseError::Error(
-                parse::ErrorKind::UnknownChunkType(e))
-        )?;
+        let chunk_type: ChunkType = raw_chunk_type
+            .try_into()
+            .map_err(|e| parse::ParseError::Error(parse::ErrorKind::UnknownChunkType(e)))?;
         let (i, chunk_len) = parse::leb128_u64(i)?;
         let (i, data) = parse::take_n(chunk_len as usize, i)?;
-        Ok((i, Chunk{
-            typ: chunk_type,
-            checksum: checksum_bytes.into(),
-            data,
-        }))
+        Ok((
+            i,
+            Chunk {
+                typ: chunk_type,
+                checksum: checksum_bytes.into(),
+                data,
+            },
+        ))
     }
 
     pub(crate) fn typ(&self) -> ChunkType {
