@@ -191,7 +191,7 @@ struct ValueMeta(u64);
 
 impl ValueMeta {
     fn type_code(&self) -> ValueType {
-        let low_byte = u8::try_from(self.0 & 0b00001111).unwrap();
+        let low_byte = (self.0 & 0b00001111) as u8;
         match low_byte {
             0 => ValueType::Null,
             1 => ValueType::False,
