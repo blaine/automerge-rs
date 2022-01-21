@@ -2,6 +2,7 @@ use std::ops::Range;
 
 use super::super::{ColumnId, ColumnSpec};
 
+#[derive(Clone)]
 pub(crate) enum Column {
     Single(ColumnSpec, SimpleColType, CopyRange<usize>),
     Value {
@@ -16,6 +17,16 @@ pub(crate) enum Column {
     },
 }
 
+impl Column {
+    pub(crate) fn range(&self) -> Range<usize> {
+        match self {
+            Self::Single(_, _, r) => r.into(),
+            Self::Value { meta, value, .. } => (meta.start..value.end),
+            Self::Group { num, values, .. } => (num.start..values.last().unwrap().range().end),
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(crate) enum SimpleColType {
     Actor,
@@ -25,12 +36,22 @@ pub(crate) enum SimpleColType {
     String,
 }
 
+#[derive(Clone, Copy)]
 pub(crate) enum GroupedColumn {
     Single(ColumnId, SimpleColType, CopyRange<usize>),
     Value {
         meta: CopyRange<usize>,
         value: CopyRange<usize>,
     },
+}
+
+impl GroupedColumn {
+    pub(crate) fn range(&self) -> Range<usize> {
+        match self {
+            Self::Single(_, _, r) => r.into(),
+            Self::Value { meta, value } => (meta.start..value.end),
+        }
+    }
 }
 
 impl Column {

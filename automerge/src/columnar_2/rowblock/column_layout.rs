@@ -11,9 +11,10 @@ impl ColumnLayout {
     }
 
     pub(crate) fn parse<I: Iterator<Item = (ColumnSpec, Range<usize>)>>(
+        data_size: usize,
         cols: I,
     ) -> Result<ColumnLayout, BadColumnLayout> {
-        let mut parser = ColumnLayoutParser::new(None);
+        let mut parser = ColumnLayoutParser::new(data_size, None);
         for (col, range) in cols {
             parser.add_column(col, range)?;
         }
@@ -35,12 +36,17 @@ pub(crate) enum BadColumnLayout {
     MismatchingValueMetadataId,
     #[error("group column had no following data columns")]
     EmptyGroup,
+    #[error("non contiguous columns")]
+    NonContiguousColumns,
+    #[error("data out of range")]
+    DataOutOfRange,
 }
 
 struct ColumnLayoutParser {
     columns: Vec<Column>,
     last_spec: Option<ColumnSpec>,
     state: LayoutParserState,
+    total_data_size: usize,
 }
 
 enum LayoutParserState {
@@ -55,11 +61,12 @@ enum GroupParseState {
 }
 
 impl ColumnLayoutParser {
-    fn new(size_hint: Option<usize>) -> Self {
+    fn new(data_size: usize, size_hint: Option<usize>) -> Self {
         ColumnLayoutParser {
             columns: Vec::with_capacity(size_hint.unwrap_or(0)),
             last_spec: None,
             state: LayoutParserState::Ready,
+            total_data_size: data_size,
         }
     }
 
@@ -104,6 +111,7 @@ impl ColumnLayoutParser {
         column: ColumnSpec,
         range: Range<usize>,
     ) -> Result<(), BadColumnLayout> {
+        self.check_contiguous(&range)?;
         if let Some(last_spec) = self.last_spec {
             if last_spec.normalize() > column.normalize() {
                 return Err(BadColumnLayout::OutOfOrder);
@@ -264,6 +272,58 @@ impl ColumnLayoutParser {
                     }
                 }
             }
+        }
+    }
+
+    fn check_contiguous(&self, next_range: &Range<usize>) -> Result<(), BadColumnLayout> {
+        match &self.state {
+            LayoutParserState::Ready => if let Some(prev) = self.columns.last() {
+                if prev.range().end != next_range.start {
+                    Err(BadColumnLayout::NonContiguousColumns)
+                } else {
+                    Ok(())
+                }
+            } else {
+                Ok(())
+            },
+            LayoutParserState::InValue(_, r) => {
+                if r.end != next_range.start {
+                    Err(BadColumnLayout::NonContiguousColumns)
+                } else {
+                    Ok(())
+                }
+            },
+            LayoutParserState::InGroup(_, r, cols, group_state) => {
+                match group_state {
+                    GroupParseState::InValue(r) => if r.end != next_range.start {
+                        Err(BadColumnLayout::NonContiguousColumns)
+                    } else {
+                        Ok(())
+                    },
+                    GroupParseState::Ready => {
+                        match cols.last() {
+                            Some(c) => if c.range().end != next_range.start {
+                                Err(BadColumnLayout::NonContiguousColumns)
+                            } else {
+                                Ok(())
+                            },
+                            None => if r.end != next_range.start {
+                                return Err(BadColumnLayout::NonContiguousColumns)
+                            } else {
+                                Ok(())
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn check_bounds(&self, next_range: &Range<usize>) -> Result<(), BadColumnLayout> {
+        if next_range.end > self.total_data_size {
+            Err(BadColumnLayout::DataOutOfRange)
+        } else {
+            Ok(())
         }
     }
 }

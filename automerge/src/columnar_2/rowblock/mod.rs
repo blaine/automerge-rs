@@ -17,7 +17,7 @@ impl RowBlock {
         cols: I,
         data: Vec<u8>,
     ) -> Result<RowBlock, BadColumnLayout> {
-        let layout = ColumnLayout::parse(cols)?;
+        let layout = ColumnLayout::parse(data.len(), cols)?;
         Ok(RowBlock {
             columns: layout,
             data,
