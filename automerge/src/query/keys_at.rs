@@ -3,7 +3,7 @@ use crate::types::{Clock, Key, Op};
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct KeysAt<const B: usize> {
+pub(crate) struct KeysAt {
     clock: Clock,
     pub keys: Vec<Key>,
     last: Option<Key>,
@@ -11,7 +11,7 @@ pub(crate) struct KeysAt<const B: usize> {
     pos: usize,
 }
 
-impl<const B: usize> KeysAt<B> {
+impl KeysAt {
     pub fn new(clock: Clock) -> Self {
         KeysAt {
             clock,
@@ -23,7 +23,7 @@ impl<const B: usize> KeysAt<B> {
     }
 }
 
-impl<const B: usize> TreeQuery<B> for KeysAt<B> {
+impl TreeQuery for KeysAt {
     fn query_element(&mut self, op: &Op) -> QueryResult {
         let visible = self.window.visible_at(op, self.pos, &self.clock);
         if Some(op.key) != self.last && visible {

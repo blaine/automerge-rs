@@ -4,28 +4,34 @@ use std::{
     mem,
 };
 
+mod op_block;
+pub(crate) use op_block::OpBlock;
+
 pub(crate) use crate::op_set::OpSetMetadata;
-use crate::query::{Index, QueryResult, TreeQuery};
+use crate::query::{Index, Node, QueryResult, TreeQuery};
 use crate::types::{Op, OpId};
 use std::collections::HashSet;
 
 #[allow(dead_code)]
-pub(crate) type OpTree = OpTreeInternal<16>;
+pub(crate) type OpTree = OpTreeInternal<Vec<Op>, 16>;
 
 #[derive(Clone, Debug)]
-pub(crate) struct OpTreeInternal<const B: usize> {
-    pub(crate) root_node: Option<OpTreeNode<B>>,
+pub(crate) struct OpTreeInternal<E: OpBlock, const B: usize> {
+    pub(crate) root_node: Option<OpTreeNode<E, B>>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct OpTreeNode<const B: usize> {
-    pub(crate) elements: Vec<Op>,
-    pub(crate) children: Vec<OpTreeNode<B>>,
+pub(crate) struct OpTreeNode<E: OpBlock, const B: usize> {
+    pub(crate) elements: E,
+    pub(crate) children: Vec<OpTreeNode<E, B>>,
     pub index: Index,
     length: usize,
 }
 
-impl<const B: usize> OpTreeInternal<B> {
+impl<E: OpBlock, const B: usize> OpTreeInternal<E, B>
+where
+    for<'a> &'a E: IntoIterator<Item = &'a Op>,
+{
     /// Construct a new, empty, sequence.
     pub fn new() -> Self {
         Self { root_node: None }
@@ -38,7 +44,7 @@ impl<const B: usize> OpTreeInternal<B> {
 
     pub fn search<Q>(&self, mut query: Q, m: &OpSetMetadata) -> Q
     where
-        Q: TreeQuery<B>,
+        Q: TreeQuery,
     {
         self.root_node
             .as_ref()
@@ -50,7 +56,7 @@ impl<const B: usize> OpTreeInternal<B> {
     }
 
     /// Create an iterator through the sequence.
-    pub fn iter(&self) -> Iter<'_, B> {
+    pub fn iter(&self) -> Iter<'_, E, B> {
         Iter {
             inner: self,
             index: 0,
@@ -162,10 +168,13 @@ impl<const B: usize> OpTreeInternal<B> {
     }
 }
 
-impl<const B: usize> OpTreeNode<B> {
-    fn new() -> Self {
+impl<E: OpBlock, const B: usize> OpTreeNode<E, B>
+where
+    for<'a> &'a E: IntoIterator<Item = &'a Op>,
+{
+    fn new() -> OpTreeNode<E, B> {
         Self {
-            elements: Vec::new(),
+            elements: E::build(),
             children: Vec::new(),
             index: Default::default(),
             length: 0,
@@ -174,7 +183,7 @@ impl<const B: usize> OpTreeNode<B> {
 
     pub fn search<Q>(&self, query: &mut Q, m: &OpSetMetadata) -> bool
     where
-        Q: TreeQuery<B>,
+        Q: TreeQuery,
     {
         if self.is_leaf() {
             for e in &self.elements {
@@ -328,13 +337,13 @@ impl<const B: usize> OpTreeNode<B> {
             // recursively delete index - 1 in predecessor_node
             let predecessor = self.children[element_index].remove(index - 1 - total_index);
             // replace element with that one
-            mem::replace(&mut self.elements[element_index], predecessor)
+            mem::replace(self.elements.get_mut(element_index).unwrap(), predecessor)
         } else if self.children[element_index + 1].elements.len() >= B {
             // recursively delete index + 1 in successor_node
             let total_index = self.cumulative_index(element_index + 1);
             let successor = self.children[element_index + 1].remove(index + 1 - total_index);
             // replace element with that one
-            mem::replace(&mut self.elements[element_index], successor)
+            mem::replace(self.elements.get_mut(element_index).unwrap(), successor)
         } else {
             let middle_element = self.elements.remove(element_index);
             let successor_child = self.children.remove(element_index + 1);
@@ -397,8 +406,10 @@ impl<const B: usize> OpTreeNode<B> {
                 self.children[child_index - 1].length -= 1;
                 self.children[child_index - 1].index.remove(&last_element);
 
-                let parent_element =
-                    mem::replace(&mut self.elements[child_index - 1], last_element);
+                let parent_element = mem::replace(
+                    self.elements.get_mut(child_index - 1).unwrap(),
+                    last_element,
+                );
 
                 self.children[child_index].index.insert(&parent_element);
                 self.children[child_index]
@@ -424,7 +435,8 @@ impl<const B: usize> OpTreeNode<B> {
 
                 assert!(!self.children[child_index + 1].elements.is_empty());
 
-                let parent_element = mem::replace(&mut self.elements[child_index], first_element);
+                let parent_element =
+                    mem::replace(self.elements.get_mut(child_index).unwrap(), first_element);
 
                 self.children[child_index].length += 1;
                 self.children[child_index].index.insert(&parent_element);
@@ -499,7 +511,7 @@ impl<const B: usize> OpTreeNode<B> {
         }
     }
 
-    fn merge(&mut self, middle: Op, successor_sibling: OpTreeNode<B>) {
+    fn merge(&mut self, middle: Op, successor_sibling: OpTreeNode<E, B>) {
         self.index.insert(&middle);
         self.index.merge(&successor_sibling.index);
         self.elements.push(middle);
@@ -568,22 +580,28 @@ impl<const B: usize> OpTreeNode<B> {
     }
 }
 
-impl<const B: usize> Default for OpTreeInternal<B> {
+impl<E: OpBlock, const B: usize> Default for OpTreeInternal<E, B>
+where
+    for<'a> &'a E: IntoIterator<Item = &'a Op>,
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<const B: usize> PartialEq for OpTreeInternal<B> {
+impl<E: OpBlock, const B: usize> PartialEq for OpTreeInternal<E, B>
+where
+    for<'a> &'a E: IntoIterator<Item = &'a Op>,
+{
     fn eq(&self, other: &Self) -> bool {
         self.len() == other.len() && self.iter().zip(other.iter()).all(|(a, b)| a == b)
     }
 }
 
-impl<'a, const B: usize> IntoIterator for &'a OpTreeInternal<B> {
+impl<'a, const B: usize> IntoIterator for &'a OpTreeInternal<Vec<Op>, B> {
     type Item = &'a Op;
 
-    type IntoIter = Iter<'a, B>;
+    type IntoIter = Iter<'a, Vec<Op>, B>;
 
     fn into_iter(self) -> Self::IntoIter {
         Iter {
@@ -593,12 +611,15 @@ impl<'a, const B: usize> IntoIterator for &'a OpTreeInternal<B> {
     }
 }
 
-pub(crate) struct Iter<'a, const B: usize> {
-    inner: &'a OpTreeInternal<B>,
+pub(crate) struct Iter<'a, E: OpBlock, const B: usize> {
+    inner: &'a OpTreeInternal<E, B>,
     index: usize,
 }
 
-impl<'a, const B: usize> Iterator for Iter<'a, B> {
+impl<'a, E: OpBlock, const B: usize> Iterator for Iter<'a, E, B>
+where
+    for<'b> &'b E: IntoIterator<Item = &'b Op>,
+{
     type Item = &'a Op;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -618,6 +639,35 @@ struct CounterData {
     val: i64,
     succ: HashSet<OpId>,
     op: Op,
+}
+
+impl<E: OpBlock, const B: usize> Node for OpTreeNode<E, B>
+where
+    for<'a> &'a E: IntoIterator<Item = &'a Op>,
+{
+    fn get(&self, index: usize) -> Option<&Op> {
+        self.get(index)
+    }
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    fn last_elem(&self) -> &Op {
+        self.last()
+    }
+
+    fn has_elemid(&self, elemid: &crate::types::ElemId) -> bool {
+        self.index.has(&Some(*elemid))
+    }
+
+    fn contains_op(&self, op: &OpId) -> bool {
+        self.index.ops.contains(op)
+    }
+
+    fn visible_len(&self) -> usize {
+        self.index.len
+    }
 }
 
 #[cfg(test)]

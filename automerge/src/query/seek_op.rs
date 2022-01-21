@@ -1,18 +1,18 @@
-use crate::op_tree::{OpSetMetadata, OpTreeNode};
-use crate::query::{binary_search_by, QueryResult, TreeQuery};
+use crate::op_tree::OpSetMetadata;
+use crate::query::{binary_search_by, Node, QueryResult, TreeQuery};
 use crate::types::{Key, Op, HEAD};
 use std::cmp::Ordering;
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct SeekOp<const B: usize> {
+pub(crate) struct SeekOp {
     op: Op,
     pub pos: usize,
     pub succ: Vec<usize>,
     found: bool,
 }
 
-impl<const B: usize> SeekOp<B> {
+impl SeekOp {
     pub fn new(op: &Op) -> Self {
         SeekOp {
             op: op.clone(),
@@ -42,12 +42,8 @@ impl<const B: usize> SeekOp<B> {
     }
 }
 
-impl<const B: usize> TreeQuery<B> for SeekOp<B> {
-    fn query_node_with_metadata(
-        &mut self,
-        child: &OpTreeNode<B>,
-        m: &OpSetMetadata,
-    ) -> QueryResult {
+impl TreeQuery for SeekOp {
+    fn query_node_with_metadata(&mut self, child: &impl Node, m: &OpSetMetadata) -> QueryResult {
         if self.found {
             return QueryResult::Decend;
         }
@@ -66,7 +62,7 @@ impl<const B: usize> TreeQuery<B> for SeekOp<B> {
                 QueryResult::Finish
             }
             Key::Seq(e) => {
-                if self.found || child.index.ops.contains(&e.0) {
+                if self.found || child.contains_op(&e.0) {
                     QueryResult::Decend
                 } else {
                     self.pos += child.len();

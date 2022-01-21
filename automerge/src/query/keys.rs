@@ -1,21 +1,20 @@
-use crate::op_tree::OpTreeNode;
-use crate::query::{QueryResult, TreeQuery};
+use crate::query::{Node, QueryResult, TreeQuery};
 use crate::types::Key;
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Keys<const B: usize> {
+pub(crate) struct Keys {
     pub keys: Vec<Key>,
 }
 
-impl<const B: usize> Keys<B> {
+impl Keys {
     pub fn new() -> Self {
         Keys { keys: vec![] }
     }
 }
 
-impl<const B: usize> TreeQuery<B> for Keys<B> {
-    fn query_node(&mut self, child: &OpTreeNode<B>) -> QueryResult {
+impl TreeQuery for Keys {
+    fn query_node(&mut self, child: &impl Node) -> QueryResult {
         let mut last = None;
         for i in 0..child.len() {
             let op = child.get(i).unwrap();

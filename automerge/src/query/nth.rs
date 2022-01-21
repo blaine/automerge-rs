@@ -1,11 +1,10 @@
 use crate::error::AutomergeError;
-use crate::op_tree::OpTreeNode;
-use crate::query::{QueryResult, TreeQuery};
+use crate::query::{Node, QueryResult, TreeQuery};
 use crate::types::{ElemId, Key, Op};
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Nth<const B: usize> {
+pub(crate) struct Nth {
     target: usize,
     seen: usize,
     last_seen: Option<ElemId>,
@@ -15,7 +14,7 @@ pub(crate) struct Nth<const B: usize> {
     pub pos: usize,
 }
 
-impl<const B: usize> Nth<B> {
+impl Nth {
     pub fn new(target: usize) -> Self {
         Nth {
             target,
@@ -37,22 +36,24 @@ impl<const B: usize> Nth<B> {
     }
 }
 
-impl<const B: usize> TreeQuery<B> for Nth<B> {
-    fn query_node(&mut self, child: &OpTreeNode<B>) -> QueryResult {
-        let mut num_vis = child.index.len;
+impl TreeQuery for Nth {
+    fn query_node(&mut self, child: &impl Node) -> QueryResult {
+        let mut num_vis = child.visible_len();
         if num_vis > 0 {
             // num vis is the number of keys in the index
             // minus one if we're counting last_seen
             // let mut num_vis = s.keys().count();
-            if child.index.has(&self.last_seen) {
-                num_vis -= 1;
+            if let Some(last_seen) = self.last_seen {
+                if child.has_elemid(&last_seen) {
+                    num_vis -= 1;
+                }
             }
             if self.seen + num_vis > self.target {
                 QueryResult::Decend
             } else {
                 self.pos += child.len();
                 self.seen += num_vis;
-                self.last_seen = child.last().elemid();
+                self.last_seen = child.last_elem().elemid();
                 QueryResult::Next
             }
         } else {

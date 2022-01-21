@@ -1,4 +1,4 @@
-use crate::op_tree::{OpSetMetadata, OpTreeNode};
+use crate::op_tree::OpSetMetadata;
 use crate::types::{Clock, Counter, ElemId, Op, OpId, OpType, ScalarValue};
 use fxhash::FxBuildHasher;
 use std::cmp::Ordering;
@@ -39,17 +39,13 @@ pub(crate) struct CounterData {
     op: Op,
 }
 
-pub(crate) trait TreeQuery<const B: usize> {
+pub(crate) trait TreeQuery {
     #[inline(always)]
-    fn query_node_with_metadata(
-        &mut self,
-        child: &OpTreeNode<B>,
-        _m: &OpSetMetadata,
-    ) -> QueryResult {
+    fn query_node_with_metadata(&mut self, child: &impl Node, _m: &OpSetMetadata) -> QueryResult {
         self.query_node(child)
     }
 
-    fn query_node(&mut self, _child: &OpTreeNode<B>) -> QueryResult {
+    fn query_node(&mut self, _child: &impl Node) -> QueryResult {
         QueryResult::Decend
     }
 
@@ -61,6 +57,20 @@ pub(crate) trait TreeQuery<const B: usize> {
     fn query_element(&mut self, _element: &Op) -> QueryResult {
         panic!("invalid element query")
     }
+}
+
+pub(crate) trait Node {
+    fn get(&self, index: usize) -> Option<&Op>;
+
+    fn len(&self) -> usize;
+
+    fn contains_op(&self, op: &OpId) -> bool;
+
+    fn last_elem(&self) -> &Op;
+
+    fn has_elemid(&self, elemid: &ElemId) -> bool;
+
+    fn visible_len(&self) -> usize;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -249,7 +259,7 @@ impl VisWindow {
     }
 }
 
-pub(crate) fn binary_search_by<F, const B: usize>(node: &OpTreeNode<B>, f: F) -> usize
+pub(crate) fn binary_search_by<F, N: Node>(node: &N, f: F) -> usize
 where
     F: Fn(&Op) -> Ordering,
 {

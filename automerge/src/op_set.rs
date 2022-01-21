@@ -11,7 +11,7 @@ pub(crate) type OpSet = OpSetInternal<16>;
 
 #[derive(Debug, Clone)]
 pub(crate) struct OpSetInternal<const B: usize> {
-    trees: HashMap<ObjId, (ObjType, OpTreeInternal<B>), FxBuildHasher>,
+    trees: HashMap<ObjId, (ObjType, OpTreeInternal<Vec<Op>, B>), FxBuildHasher>,
     length: usize,
     pub m: OpSetMetadata,
 }
@@ -43,7 +43,7 @@ impl<const B: usize> OpSetInternal<B> {
 
     pub fn search<Q>(&self, obj: ObjId, query: Q) -> Q
     where
-        Q: TreeQuery<B>,
+        Q: TreeQuery,
     {
         if let Some((_typ, tree)) = self.trees.get(&obj) {
             tree.search(query, &self.m)

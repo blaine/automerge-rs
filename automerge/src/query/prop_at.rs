@@ -1,5 +1,5 @@
-use crate::op_tree::{OpSetMetadata, OpTreeNode};
-use crate::query::{binary_search_by, QueryResult, TreeQuery, VisWindow};
+use crate::op_tree::OpSetMetadata;
+use crate::query::{binary_search_by, Node, QueryResult, TreeQuery, VisWindow};
 use crate::types::{Clock, Key, Op};
 use std::fmt::Debug;
 
@@ -24,12 +24,8 @@ impl PropAt {
     }
 }
 
-impl<const B: usize> TreeQuery<B> for PropAt {
-    fn query_node_with_metadata(
-        &mut self,
-        child: &OpTreeNode<B>,
-        m: &OpSetMetadata,
-    ) -> QueryResult {
+impl TreeQuery for PropAt {
+    fn query_node_with_metadata(&mut self, child: &impl Node, m: &OpSetMetadata) -> QueryResult {
         let start = binary_search_by(child, |op| m.key_cmp(&op.key, &self.key));
         let mut window: VisWindow = Default::default();
         self.pos = start;

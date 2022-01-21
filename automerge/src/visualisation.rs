@@ -3,6 +3,8 @@ use std::{borrow::Cow, collections::HashMap, hash::BuildHasherDefault};
 
 use rand::Rng;
 
+use crate::{op_tree::OpBlock, types::Op};
+
 #[derive(Copy, Clone, PartialEq, Hash, Eq)]
 pub(crate) struct NodeId(u64);
 
@@ -15,17 +17,17 @@ impl Default for NodeId {
 }
 
 #[derive(Clone)]
-pub(crate) struct Node<'a, const B: usize> {
+pub(crate) struct Node<'a, E: OpBlock, const B: usize> {
     id: NodeId,
     children: Vec<NodeId>,
-    node_type: NodeType<'a, B>,
+    node_type: NodeType<'a, E, B>,
     metadata: &'a crate::op_set::OpSetMetadata,
 }
 
 #[derive(Clone)]
-pub(crate) enum NodeType<'a, const B: usize> {
+pub(crate) enum NodeType<'a, E: OpBlock, const B: usize> {
     ObjRoot(crate::types::ObjId),
-    ObjTreeNode(&'a crate::op_tree::OpTreeNode<B>),
+    ObjTreeNode(&'a crate::op_tree::OpTreeNode<E, B>),
 }
 
 #[derive(Clone)]
@@ -34,20 +36,20 @@ pub(crate) struct Edge {
     child_id: NodeId,
 }
 
-pub(crate) struct GraphVisualisation<'a, const B: usize> {
-    nodes: HashMap<NodeId, Node<'a, B>>,
+pub(crate) struct GraphVisualisation<'a, E: OpBlock, const B: usize> {
+    nodes: HashMap<NodeId, Node<'a, E, B>>,
     actor_shorthands: HashMap<usize, String>,
 }
 
-impl<'a, const B: usize> GraphVisualisation<'a, B> {
+impl<'a, E: OpBlock, const B: usize> GraphVisualisation<'a, E, B> {
     pub(super) fn construct(
         trees: &'a HashMap<
             crate::types::ObjId,
-            (crate::types::ObjType, crate::op_tree::OpTreeInternal<B>),
+            (crate::types::ObjType, crate::op_tree::OpTreeInternal<E, B>),
             BuildHasherDefault<FxHasher>,
         >,
         metadata: &'a crate::op_set::OpSetMetadata,
-    ) -> GraphVisualisation<'a, B> {
+    ) -> GraphVisualisation<'a, E, B> {
         let mut nodes = HashMap::new();
         for (obj_id, (_, tree)) in trees {
             if let Some(root_node) = &tree.root_node {
@@ -75,8 +77,8 @@ impl<'a, const B: usize> GraphVisualisation<'a, B> {
     }
 
     fn construct_nodes(
-        node: &'a crate::op_tree::OpTreeNode<B>,
-        nodes: &mut HashMap<NodeId, Node<'a, B>>,
+        node: &'a crate::op_tree::OpTreeNode<E, B>,
+        nodes: &mut HashMap<NodeId, Node<'a, E, B>>,
         m: &'a crate::op_set::OpSetMetadata,
     ) -> NodeId {
         let node_id = NodeId::default();
@@ -98,8 +100,10 @@ impl<'a, const B: usize> GraphVisualisation<'a, B> {
     }
 }
 
-impl<'a, const B: usize> dot::GraphWalk<'a, &'a Node<'a, B>, Edge> for GraphVisualisation<'a, B> {
-    fn nodes(&'a self) -> dot::Nodes<'a, &'a Node<'a, B>> {
+impl<'a, E: OpBlock, const B: usize> dot::GraphWalk<'a, &'a Node<'a, E, B>, Edge>
+    for GraphVisualisation<'a, E, B>
+{
+    fn nodes(&'a self) -> dot::Nodes<'a, &'a Node<'a, E, B>> {
         Cow::Owned(self.nodes.values().collect::<Vec<_>>())
     }
 
@@ -116,25 +120,29 @@ impl<'a, const B: usize> dot::GraphWalk<'a, &'a Node<'a, B>, Edge> for GraphVisu
         Cow::Owned(edges)
     }
 
-    fn source(&'a self, edge: &Edge) -> &'a Node<'a, B> {
+    fn source(&'a self, edge: &Edge) -> &'a Node<'a, E, B> {
         self.nodes.get(&edge.parent_id).unwrap()
     }
 
-    fn target(&'a self, edge: &Edge) -> &'a Node<'a, B> {
+    fn target(&'a self, edge: &Edge) -> &'a Node<'a, E, B> {
         self.nodes.get(&edge.child_id).unwrap()
     }
 }
 
-impl<'a, const B: usize> dot::Labeller<'a, &'a Node<'a, B>, Edge> for GraphVisualisation<'a, B> {
+impl<'a, E: OpBlock, const B: usize> dot::Labeller<'a, &'a Node<'a, E, B>, Edge>
+    for GraphVisualisation<'a, E, B>
+where
+    for<'b> &'b E: IntoIterator<Item = &'b Op>,
+{
     fn graph_id(&'a self) -> dot::Id<'a> {
         dot::Id::new("OpSet").unwrap()
     }
 
-    fn node_id(&'a self, n: &&Node<'a, B>) -> dot::Id<'a> {
+    fn node_id(&'a self, n: &&Node<'a, E, B>) -> dot::Id<'a> {
         dot::Id::new(format!("node_{}", n.id.0)).unwrap()
     }
 
-    fn node_shape(&'a self, node: &&'a Node<'a, B>) -> Option<dot::LabelText<'a>> {
+    fn node_shape(&'a self, node: &&'a Node<'a, E, B>) -> Option<dot::LabelText<'a>> {
         let shape = match node.node_type {
             NodeType::ObjTreeNode(_) => dot::LabelText::label("none"),
             NodeType::ObjRoot(_) => dot::LabelText::label("ellipse"),
@@ -142,7 +150,7 @@ impl<'a, const B: usize> dot::Labeller<'a, &'a Node<'a, B>, Edge> for GraphVisua
         Some(shape)
     }
 
-    fn node_label(&'a self, n: &&Node<'a, B>) -> dot::LabelText<'a> {
+    fn node_label(&'a self, n: &&Node<'a, E, B>) -> dot::LabelText<'a> {
         match n.node_type {
             NodeType::ObjTreeNode(tree_node) => dot::LabelText::HtmlStr(
                 OpTable::create(tree_node, n.metadata, &self.actor_shorthands)
@@ -161,14 +169,16 @@ struct OpTable {
 }
 
 impl OpTable {
-    fn create<'a, const B: usize>(
-        node: &'a crate::op_tree::OpTreeNode<B>,
+    fn create<'a, E: OpBlock, const B: usize>(
+        node: &'a crate::op_tree::OpTreeNode<E, B>,
         metadata: &crate::op_set::OpSetMetadata,
         actor_shorthands: &HashMap<usize, String>,
-    ) -> Self {
-        let rows = node
-            .elements
-            .iter()
+    ) -> Self
+    where
+        for<'b> &'b E: IntoIterator<Item = &'b Op>,
+    {
+        let rows = (&node.elements)
+            .into_iter()
             .map(|e| OpTableRow::create(e, metadata, actor_shorthands))
             .collect();
         OpTable { rows }

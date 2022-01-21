@@ -1,11 +1,10 @@
 use crate::error::AutomergeError;
-use crate::op_tree::OpTreeNode;
-use crate::query::{QueryResult, TreeQuery};
+use crate::query::{Node, QueryResult, TreeQuery};
 use crate::types::{ElemId, Key, Op, HEAD};
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct InsertNth<const B: usize> {
+pub(crate) struct InsertNth {
     target: usize,
     seen: usize,
     pub pos: usize,
@@ -13,7 +12,7 @@ pub(crate) struct InsertNth<const B: usize> {
     last_insert: Option<ElemId>,
 }
 
-impl<const B: usize> InsertNth<B> {
+impl InsertNth {
     pub fn new(target: usize) -> Self {
         InsertNth {
             target,
@@ -35,24 +34,26 @@ impl<const B: usize> InsertNth<B> {
     }
 }
 
-impl<const B: usize> TreeQuery<B> for InsertNth<B> {
-    fn query_node(&mut self, child: &OpTreeNode<B>) -> QueryResult {
+impl TreeQuery for InsertNth {
+    fn query_node(&mut self, child: &impl Node) -> QueryResult {
         if self.target == 0 {
             // insert at the start of the obj all inserts are lesser b/c this is local
             self.pos = 0;
             return QueryResult::Finish;
         }
-        let mut num_vis = child.index.len;
+        let mut num_vis = child.visible_len();
         if num_vis > 0 {
-            if child.index.has(&self.last_seen) {
-                num_vis -= 1;
+            if let Some(last_seen) = self.last_seen {
+                if child.has_elemid(&last_seen) {
+                    num_vis -= 1;
+                }
             }
             if self.seen + num_vis >= self.target {
                 QueryResult::Decend
             } else {
                 self.pos += child.len();
                 self.seen += num_vis;
-                self.last_seen = child.last().elemid();
+                self.last_seen = child.last_elem().elemid();
                 QueryResult::Next
             }
         } else {

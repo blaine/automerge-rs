@@ -1,5 +1,4 @@
-use crate::op_tree::OpTreeNode;
-use crate::query::{QueryResult, TreeQuery};
+use crate::query::{Node, QueryResult, TreeQuery};
 use crate::types::{ElemId, Op};
 use std::fmt::Debug;
 
@@ -18,8 +17,8 @@ impl ListVals {
     }
 }
 
-impl<const B: usize> TreeQuery<B> for ListVals {
-    fn query_node(&mut self, child: &OpTreeNode<B>) -> QueryResult {
+impl TreeQuery for ListVals {
+    fn query_node(&mut self, child: &impl Node) -> QueryResult {
         let start = 0;
         for pos in start..child.len() {
             let op = child.get(pos).unwrap();
