@@ -1,32 +1,43 @@
+use std::convert::TryInto;
+
+use self::column_layout::DocOpColumns;
+
 use super::{ColumnId, ColumnSpec};
 
 mod col_decoders;
-mod column;
 mod column_layout;
 use column_layout::{BadColumnLayout, ColumnLayout};
-mod op_columns;
+mod row_ops;
 mod value;
 use value::CellValue;
 
-pub(crate) struct RowBlock {
-    columns: ColumnLayout,
+pub(crate) struct RowBlock<C> {
+    columns: C,
     data: Vec<u8>,
 }
 
-impl RowBlock {
+impl RowBlock<ColumnLayout> {
     pub(crate) fn new<I: Iterator<Item = (ColumnSpec, std::ops::Range<usize>)>>(
         cols: I,
         data: Vec<u8>,
-    ) -> Result<RowBlock, BadColumnLayout> {
+    ) -> Result<RowBlock<ColumnLayout>, BadColumnLayout> {
         let layout = ColumnLayout::parse(data.len(), cols)?;
         Ok(RowBlock {
             columns: layout,
             data,
         })
     }
+
+    pub(crate) fn into_doc_ops(self) -> Result<RowBlock<column_layout::DocOpColumns>, column_layout::ParseDocColumnError> {
+        let doc_cols: column_layout::DocOpColumns = self.columns.try_into()?;
+        Ok(RowBlock {
+            columns: doc_cols,
+            data: self.data,
+        })
+    }
 }
 
-impl<'a> IntoIterator for &'a RowBlock {
+impl<'a> IntoIterator for &'a RowBlock<ColumnLayout> {
     type Item = Vec<(ColumnId, Option<CellValue>)>;
     type IntoIter = RowBlockIter<'a>;
 
@@ -61,3 +72,11 @@ impl<'a> Iterator for RowBlockIter<'a> {
     }
 }
 
+impl<'a> IntoIterator for &'a RowBlock<DocOpColumns> {
+    type Item = row_ops::DocOp;
+    type IntoIter = column_layout::doc_op_columns::DocOpColumnIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.columns.iter(&self.data)
+    }
+}

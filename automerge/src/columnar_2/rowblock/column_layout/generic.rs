@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use super::super::column_specification::{ColumnId, ColumnSpec, ColumnType};
+use crate::columnar_2::column_specification::{ColumnId, ColumnSpec, ColumnType};
 use super::column::{Column, GroupedColumn, SimpleColType};
 
 pub(crate) struct ColumnLayout(Vec<Column>);

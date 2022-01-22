@@ -25,6 +25,10 @@ pub fn do_the_thing(data: &[u8]) {
                     for row in &ops_rowblock {
                         println!("Op: {:?}", row);
                     }
+                    let doc_ops_rowblock = ops_rowblock.into_doc_ops().unwrap();
+                    for row in &doc_ops_rowblock {
+                        println!("DocOp: {:?}", row);
+                    }
                 }
                 Err(e) => {
                     eprintln!("Error parsing document: {:?}", e);
