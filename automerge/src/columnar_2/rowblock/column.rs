@@ -27,7 +27,7 @@ impl Column {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Eq, PartialEq, Clone, Copy)]
 pub(crate) enum SimpleColType {
     Actor,
     Integer,

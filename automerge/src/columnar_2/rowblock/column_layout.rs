@@ -20,6 +20,23 @@ impl ColumnLayout {
         }
         parser.build()
     }
+
+    pub(crate) fn empty() -> Self {
+        Self(Vec::new())
+    }
+
+    pub(crate) fn append(&mut self, col: Column) {
+        self.0.push(col)
+    }
+}
+
+impl IntoIterator for ColumnLayout {
+    type Item = Column;
+    type IntoIter = std::vec::IntoIter<Column>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

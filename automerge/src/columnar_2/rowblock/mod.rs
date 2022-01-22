@@ -4,6 +4,7 @@ mod col_decoders;
 mod column;
 mod column_layout;
 use column_layout::{BadColumnLayout, ColumnLayout};
+mod op_columns;
 mod value;
 use value::CellValue;
 
@@ -59,3 +60,4 @@ impl<'a> Iterator for RowBlockIter<'a> {
         }
     }
 }
+
