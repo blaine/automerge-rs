@@ -27,7 +27,7 @@ pub fn do_the_thing(data: &[u8]) {
                     }
                     let doc_ops_rowblock = ops_rowblock.into_doc_ops().unwrap();
                     for row in &doc_ops_rowblock {
-                        println!("DocOp: {:?}", row);
+                        println!("{:?}", row);
                     }
                 }
                 Err(e) => {

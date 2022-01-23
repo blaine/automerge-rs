@@ -9,7 +9,7 @@ pub(crate) trait OpBlock:
 
     fn get(&self, index: usize) -> Option<&Op>;
 
-    fn get_mut(&mut self, index: usize) -> Option<&mut Op>;
+    fn replace(&mut self, index: usize, new_op: Op) -> Op;
 
     fn last(&self) -> Option<&Op>;
 
@@ -33,12 +33,13 @@ impl OpBlock for Vec<Op> {
         Vec::new()
     }
 
-    fn get(&self, index: usize) -> Option<&Op> {
-        self.as_slice().get(index)
+    fn replace(&mut self, index: usize, new_op: Op) -> Op {
+        let target = self.as_mut_slice().get_mut(index).unwrap();
+        std::mem::replace(target, new_op)
     }
 
-    fn get_mut(&mut self, index: usize) -> Option<&mut Op> {
-        self.as_mut_slice().get_mut(index)
+    fn get(&self, index: usize) -> Option<&Op> {
+        self.as_slice().get(index)
     }
 
     fn last(&self) -> Option<&Op> {

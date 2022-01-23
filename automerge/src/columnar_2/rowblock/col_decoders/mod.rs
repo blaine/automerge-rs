@@ -7,6 +7,8 @@ use super::column_layout::column::{Column, GroupedColumn, SimpleColType};
 use super::value::CellValue;
 use crate::decoding::{BooleanDecoder, DeltaDecoder, RleDecoder};
 
+mod interned_key_decoder;
+pub(crate) use interned_key_decoder::InternedKeyDecoder;
 mod key_decoder;
 pub(crate) use key_decoder::KeyDecoder;
 mod obj_decoder;
@@ -53,7 +55,7 @@ impl<'a> SimpleColDecoder<'a> {
             Self::RleString(d) => d.next().and_then(|s| s.map(CellValue::String)),
             Self::Delta(d) => d.next().and_then(|i| i.map(CellValue::Uint)),
             Self::Bool(d) => d.next().map(CellValue::Bool),
-            Self::Value(value) => value.next(),
+            Self::Value(value) => value.next().map(CellValue::Value),
         }
     }
 }

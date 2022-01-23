@@ -1,8 +1,7 @@
 use std::{borrow::Cow, convert::TryFrom, ops::Range};
 
 use crate::{
-    columnar::Action,
-    columnar_2::rowblock::{col_decoders::OpIdDecoder, row_ops::ActionIndex},
+    columnar_2::rowblock::col_decoders::OpIdDecoder,
     decoding::{BooleanDecoder, DeltaDecoder, RleDecoder},
 };
 
@@ -11,7 +10,7 @@ use super::{
         col_decoders::{KeyDecoder, ObjDecoder, OpListDecoder, ValueDecoder},
         row_ops::DocOp,
     },
-    column::{Column, CopyRange, GroupedColumn, SimpleColType},
+    column::{Column, GroupedColumn, SimpleColType},
     ColumnLayout,
 };
 
@@ -104,7 +103,7 @@ impl<'a> Iterator for DocOpColumnIter<'a> {
             Some(DocOp {
                 id,
                 value,
-                action: ActionIndex::new(action),
+                action,
                 object: obj,
                 key,
                 succ,

@@ -337,13 +337,13 @@ where
             // recursively delete index - 1 in predecessor_node
             let predecessor = self.children[element_index].remove(index - 1 - total_index);
             // replace element with that one
-            mem::replace(self.elements.get_mut(element_index).unwrap(), predecessor)
+            self.elements.replace(element_index, predecessor)
         } else if self.children[element_index + 1].elements.len() >= B {
             // recursively delete index + 1 in successor_node
             let total_index = self.cumulative_index(element_index + 1);
             let successor = self.children[element_index + 1].remove(index + 1 - total_index);
             // replace element with that one
-            mem::replace(self.elements.get_mut(element_index).unwrap(), successor)
+            self.elements.replace(element_index, successor)
         } else {
             let middle_element = self.elements.remove(element_index);
             let successor_child = self.children.remove(element_index + 1);
@@ -406,10 +406,7 @@ where
                 self.children[child_index - 1].length -= 1;
                 self.children[child_index - 1].index.remove(&last_element);
 
-                let parent_element = mem::replace(
-                    self.elements.get_mut(child_index - 1).unwrap(),
-                    last_element,
-                );
+                let parent_element = self.elements.replace(child_index - 1, last_element);
 
                 self.children[child_index].index.insert(&parent_element);
                 self.children[child_index]
@@ -435,8 +432,7 @@ where
 
                 assert!(!self.children[child_index + 1].elements.is_empty());
 
-                let parent_element =
-                    mem::replace(self.elements.get_mut(child_index).unwrap(), first_element);
+                let parent_element = self.elements.replace(child_index, first_element);
 
                 self.children[child_index].length += 1;
                 self.children[child_index].index.insert(&parent_element);
@@ -523,9 +519,9 @@ where
 
     pub fn set(&mut self, index: usize, element: Op) -> Op {
         if self.is_leaf() {
-            let old_element = self.elements.get_mut(index).unwrap();
+            let old_element = self.elements.get(index).unwrap();
             self.index.replace(old_element, &element);
-            mem::replace(old_element, element)
+            self.elements.replace(index, element)
         } else {
             let mut cumulative_len = 0;
             for (child_index, child) in self.children.iter_mut().enumerate() {
@@ -534,9 +530,9 @@ where
                         cumulative_len += child.len() + 1;
                     }
                     Ordering::Equal => {
-                        let old_element = self.elements.get_mut(child_index).unwrap();
+                        let old_element = self.elements.get(child_index).unwrap();
                         self.index.replace(old_element, &element);
-                        return mem::replace(old_element, element);
+                        return self.elements.replace(child_index, element);
                     }
                     Ordering::Greater => {
                         let old_element = child.set(index - cumulative_len, element.clone());

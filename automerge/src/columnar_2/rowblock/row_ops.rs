@@ -1,45 +1,7 @@
 use smol_str::SmolStr;
 
-use super::value::CellValue;
-
-#[derive(Debug)]
-pub(crate) struct ActionIndex(usize);
-
-impl ActionIndex {
-    pub(crate) fn new(val: usize) -> ActionIndex {
-        ActionIndex(val)
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct ActorIndex(usize);
-
-impl ActorIndex {
-    pub(crate) fn new(val: usize) -> ActorIndex {
-        ActorIndex(val)
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct OpId(ActorIndex, u64);
-
-impl OpId {
-    pub(crate) fn new(act: ActorIndex, ctr: u64) -> OpId {
-        OpId(act, ctr)
-    }
-}
-
-#[derive(Debug)]
-pub(crate) enum ObjId {
-    Root,
-    Op(OpId),
-}
-
-#[derive(Debug)]
-pub(crate) enum ElemId {
-    Head,
-    Op(OpId),
-}
+use crate::types::{ObjId, ElemId, OpId};
+use super::value::PrimVal;
 
 #[derive(Debug)]
 pub(crate) enum Key {
@@ -54,7 +16,7 @@ pub(crate) struct DocOp {
     pub(crate) object: ObjId,
     pub(crate) key: Key,
     pub(crate) insert: bool,
-    pub(crate) action: ActionIndex,
-    pub(crate) value: Option<CellValue>,
+    pub(crate) action: usize,
+    pub(crate) value: Option<PrimVal>,
     pub(crate) succ: Vec<OpId>,
 }
