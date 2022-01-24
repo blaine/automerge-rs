@@ -1,11 +1,17 @@
-use std::{borrow::Cow, ops::Range};
+use std::convert::TryInto;
 
 use crate::{
-    columnar_2::rowblock::col_decoders::{
-        InternedKeyDecoder, OpIdDecoder, OpListDecoder, ValueDecoder,
+    columnar::Action,
+    columnar_2::rowblock::{encoding::{
+        encoders::Sink,
+        decoders::{
+            Source, InternedKeyDecoder, OpIdDecoder, OpListDecoder, ValueDecoder,
+        },
     },
-    decoding::{BooleanDecoder, DeltaDecoder, RleDecoder},
-    types::{Op, ObjId}, columnar::Action, OpType, ObjType,
+    column_range::{ActorRange, BooleanRange, DeltaIntRange, RawRange, RleIntRange}},
+    decoding::{BooleanDecoder, RleDecoder},
+    types::{ObjId, Op},
+    ObjType, OpType,
 };
 
 use super::ColumnLayout;
@@ -14,52 +20,61 @@ use super::ColumnLayout;
 /// the key_str column is RLE encoded integers as we intern the keys in the OpSet. We also have
 /// both pred and succ group columns.
 struct OpTreeColumns {
-    key_actor: Range<usize>,
-    key_ctr: Range<usize>,
-    key_str: Range<usize>,
-    id_actor: Range<usize>,
-    id_ctr: Range<usize>,
-    insert: Range<usize>,
-    action: Range<usize>,
-    val_meta: Range<usize>,
-    val_raw: Range<usize>,
-    pred_group: Range<usize>,
-    pred_actor: Range<usize>,
-    pred_ctr: Range<usize>,
-    succ_group: Range<usize>,
-    succ_actor: Range<usize>,
-    succ_ctr: Range<usize>,
-    change_idx: Range<usize>,
+    key_actor: ActorRange,
+    key_ctr: DeltaIntRange,
+    key_str: RleIntRange,
+    id_actor: RleIntRange,
+    id_ctr: DeltaIntRange,
+    insert: BooleanRange,
+    action: RleIntRange,
+    val_meta: RleIntRange,
+    val_raw: RawRange,
+    pred_group: RleIntRange,
+    pred_actor: RleIntRange,
+    pred_ctr: DeltaIntRange,
+    succ_group: RleIntRange,
+    succ_actor: RleIntRange,
+    succ_ctr: DeltaIntRange,
+    change_idx: RleIntRange,
     other: ColumnLayout,
 }
 
 impl OpTreeColumns {
-    fn iter<'a>(&self, obj: ObjId, data: &'a [u8]) -> OpTreeColumnIter<'a> {
+    pub(crate) fn insert(&mut self, index: usize, op: Op, data: &[u8]) {
+        let mut new_data: Vec<u8> = Vec::with_capacity(data.len() + std::mem::size_of::<Op>());
+
+        // read off index - 1 entries, insert into target slice
+
+        // insert new element
+        // read off reamining entries and insert
+    }
+
+    pub(crate) fn iter<'a>(&self, obj: ObjId, data: &'a [u8]) -> OpTreeColumnIter<'a> {
         OpTreeColumnIter {
             obj,
-            id: OpIdDecoder::new(
-                RleDecoder::from(Cow::Borrowed(&data[self.id_actor.clone()])),
-                DeltaDecoder::from(Cow::Borrowed(&data[self.id_ctr.clone()])),
-            ),
-            action: RleDecoder::from(Cow::Borrowed(&data[self.action.clone()])),
+            id: OpIdDecoder::new(self.id_actor.decoder(data), self.id_ctr.decoder(data)),
+            action: self.action.decoder(data),
             keys: InternedKeyDecoder::new(
-                RleDecoder::from(Cow::Borrowed(&data[self.key_actor.clone()])),
-                DeltaDecoder::from(Cow::Borrowed(&data[self.key_ctr.clone()])),
-                RleDecoder::from(Cow::Borrowed(&data[self.key_str.clone()])),
+                self.key_actor.decoder(data),
+                self.key_ctr.decoder(data),
+                self.key_str.decoder(data),
             ),
-            insert: BooleanDecoder::from(Cow::Borrowed(&data[self.insert.clone()])),
-            value: ValueDecoder::new(&data[self.val_meta.clone()], &data[self.val_raw.clone()]),
+            insert: self.insert.decoder(data),
+            value: ValueDecoder::new(
+                self.val_meta.decoder(data),
+                self.val_raw.decoder(data),
+            ),
             pred: OpListDecoder::new(
-                RleDecoder::from(Cow::Borrowed(&data[self.pred_group.clone()])),
-                RleDecoder::from(Cow::Borrowed(&data[self.pred_actor.clone()])),
-                DeltaDecoder::from(Cow::Borrowed(&data[self.pred_ctr.clone()])),
+                self.pred_group.decoder(data),
+                self.pred_actor.decoder(data),
+                self.pred_ctr.decoder(data),
             ),
             succ: OpListDecoder::new(
-                RleDecoder::from(Cow::Borrowed(&data[self.succ_group.clone()])),
-                RleDecoder::from(Cow::Borrowed(&data[self.succ_actor.clone()])),
-                DeltaDecoder::from(Cow::Borrowed(&data[self.succ_ctr.clone()])),
+                self.succ_group.decoder(data),
+                self.succ_actor.decoder(data),
+                self.succ_ctr.decoder(data),
             ),
-            change_idx: RleDecoder::from(Cow::Borrowed(&data[self.change_idx.clone()])),
+            change_idx: self.change_idx.decoder(data),
         }
     }
 }
@@ -67,13 +82,13 @@ impl OpTreeColumns {
 pub(crate) struct OpTreeColumnIter<'a> {
     obj: ObjId,
     id: OpIdDecoder<'a>,
-    action: RleDecoder<'a, Action>,
+    action: RleDecoder<'a, u64>,
     keys: InternedKeyDecoder<'a>,
     insert: BooleanDecoder<'a>,
     value: ValueDecoder<'a>,
     pred: OpListDecoder<'a>,
     succ: OpListDecoder<'a>,
-    change_idx: RleDecoder<'a, usize>,
+    change_idx: RleDecoder<'a, u64>,
 }
 
 impl<'a> OpTreeColumnIter<'a> {
@@ -86,7 +101,9 @@ impl<'a> OpTreeColumnIter<'a> {
             self.pred.done(),
             self.succ.done(),
             self.value.done(),
-        ].iter().all(|b| *b)
+        ]
+        .iter()
+        .all(|b| *b)
     }
 }
 
@@ -97,7 +114,8 @@ impl<'a> Iterator for OpTreeColumnIter<'a> {
         if self.done() {
             None
         } else {
-            let action = match self.action.next().unwrap().unwrap() {
+            let action: Action = self.action.next().unwrap().unwrap().try_into().unwrap();
+            let action = match action {
                 Action::MakeMap => OpType::Make(ObjType::Map),
                 Action::MakeTable => OpType::Make(ObjType::Table),
                 Action::MakeText => OpType::Make(ObjType::Text),
@@ -106,7 +124,7 @@ impl<'a> Iterator for OpTreeColumnIter<'a> {
                 Action::Inc => OpType::Set(self.value.next().unwrap().into()),
                 Action::Del => OpType::Del,
             };
-            Some(Op{
+            Some(Op {
                 obj: self.obj,
                 key: self.keys.next().unwrap(),
                 id: self.id.next().unwrap().into(),
@@ -114,8 +132,35 @@ impl<'a> Iterator for OpTreeColumnIter<'a> {
                 insert: self.insert.next().unwrap(),
                 pred: self.pred.next().unwrap(),
                 succ: self.succ.next().unwrap(),
-                change: self.change_idx.next().unwrap().unwrap(),
+                change: self.change_idx.next().unwrap().unwrap() as usize,
             })
         }
     }
+}
+
+fn copy_with_insert<T, I: Source<Item=T>, S: Sink<Item=T>>(mut input: I, mut output: S, index: usize, value: Option<T>) -> usize {
+    for _ in 0..index {
+        let val = input.next();
+        output.append(val);
+    }
+    output.append(value);
+    while !input.done() {
+        let val = input.next();
+        output.append(val);
+    }
+    output.finish()
+}
+
+fn split_into<T, I: Source<Item=T>, S: Sink<Item=T>>(mut input: I, mut output_one: S, mut output_two: S, index: usize) -> (usize, usize) {
+    for _ in 0..index {
+        let val = input.next();
+        output_one.append(val);
+    }
+    let size_one = output_one.finish();
+    while !input.done() {
+        let val = input.next();
+        output_two.append(val);
+    }
+    let size_two = output_two.finish();
+    (size_one, size_two)
 }

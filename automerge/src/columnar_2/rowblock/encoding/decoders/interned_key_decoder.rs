@@ -6,14 +6,14 @@ use crate::{
 pub(crate) struct InternedKeyDecoder<'a> {
     actor: RleDecoder<'a, u64>,
     ctr: DeltaDecoder<'a>,
-    str_idx: RleDecoder<'a, usize>,
+    str_idx: RleDecoder<'a, u64>,
 }
 
 impl<'a> InternedKeyDecoder<'a> {
     pub(crate) fn new(
         actor: RleDecoder<'a, u64>,
         ctr: DeltaDecoder<'a>,
-        str_idx: RleDecoder<'a, usize>,
+        str_idx: RleDecoder<'a, u64>,
     ) -> Self {
         Self {
             actor,
@@ -32,7 +32,7 @@ impl<'a> Iterator for InternedKeyDecoder<'a> {
 
     fn next(&mut self) -> Option<Key> {
         match (self.actor.next()?, self.ctr.next()?, self.str_idx.next()?) {
-            (None, None, Some(key_idx)) => Some(Key::Map(key_idx)),
+            (None, None, Some(key_idx)) => Some(Key::Map(key_idx as usize)),
             (None, Some(0), None) => Some(Key::Seq(ElemId(OpId(0, 0)))),
             (Some(actor), Some(ctr), None) => Some(Key::Seq(OpId(actor, ctr as usize).into())),
             // TODO: This should be fallible and throw here

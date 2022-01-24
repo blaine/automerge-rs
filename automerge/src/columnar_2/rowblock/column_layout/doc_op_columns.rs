@@ -1,13 +1,13 @@
-use std::{borrow::Cow, convert::TryFrom, ops::Range};
+use std::{convert::TryFrom, ops::Range};
 
-use crate::{
-    columnar_2::rowblock::col_decoders::OpIdDecoder,
-    decoding::{BooleanDecoder, DeltaDecoder, RleDecoder},
-};
+use crate::decoding::{BooleanDecoder, RleDecoder};
 
 use super::{
     super::{
-        col_decoders::{KeyDecoder, ObjDecoder, OpListDecoder, ValueDecoder},
+        column_range::{
+            ActorRange, BooleanRange, DeltaIntRange, RawRange, RleIntRange, RleStringRange,
+        },
+        encoding::decoders::{KeyDecoder, ObjDecoder, OpIdDecoder, OpListDecoder, ValueDecoder},
         row_ops::DocOp,
     },
     column::{Column, GroupedColumn, SimpleColType},
@@ -15,46 +15,40 @@ use super::{
 };
 
 pub(crate) struct DocOpColumns {
-    actor: Range<usize>,
-    ctr: Range<usize>,
-    key_actor: Range<usize>,
-    key_ctr: Range<usize>,
-    key_str: Range<usize>,
-    id_actor: Range<usize>,
-    id_ctr: Range<usize>,
-    insert: Range<usize>,
-    action: Range<usize>,
-    val_meta: Range<usize>,
-    val_raw: Range<usize>,
-    succ_group: Range<usize>,
-    succ_actor: Range<usize>,
-    succ_ctr: Range<usize>,
+    actor: ActorRange,
+    ctr: RleIntRange,
+    key_actor: ActorRange,
+    key_ctr: DeltaIntRange,
+    key_str: RleStringRange,
+    id_actor: RleIntRange,
+    id_ctr: DeltaIntRange,
+    insert: BooleanRange,
+    action: RleIntRange,
+    val_meta: RleIntRange,
+    val_raw: RawRange,
+    succ_group: RleIntRange,
+    succ_actor: RleIntRange,
+    succ_ctr: DeltaIntRange,
     other: ColumnLayout,
 }
 
 impl DocOpColumns {
     pub(crate) fn iter<'a>(&self, data: &'a [u8]) -> DocOpColumnIter<'a> {
         DocOpColumnIter {
-            id: OpIdDecoder::new(
-                RleDecoder::from(Cow::Borrowed(&data[self.id_actor.clone()])),
-                DeltaDecoder::from(Cow::Borrowed(&data[self.id_ctr.clone()])),
-            ),
-            action: RleDecoder::from(Cow::Borrowed(&data[self.action.clone()])),
-            objs: ObjDecoder::new(
-                RleDecoder::from(Cow::Borrowed(&data[self.actor.clone()])),
-                RleDecoder::from(Cow::Borrowed(&data[self.ctr.clone()])),
-            ),
+            id: OpIdDecoder::new(self.id_actor.decoder(data), self.id_ctr.decoder(data)),
+            action: self.action.decoder(data),
+            objs: ObjDecoder::new(self.actor.decoder(data), self.ctr.decoder(data)),
             keys: KeyDecoder::new(
-                RleDecoder::from(Cow::Borrowed(&data[self.key_actor.clone()])),
-                DeltaDecoder::from(Cow::Borrowed(&data[self.key_ctr.clone()])),
-                RleDecoder::from(Cow::Borrowed(&data[self.key_str.clone()])),
+                self.key_actor.decoder(data),
+                self.key_ctr.decoder(data),
+                self.key_str.decoder(data),
             ),
-            insert: BooleanDecoder::from(Cow::Borrowed(&data[self.insert.clone()])),
-            value: ValueDecoder::new(&data[self.val_meta.clone()], &data[self.val_raw.clone()]),
+            insert: self.insert.decoder(data),
+            value: ValueDecoder::new(self.val_meta.decoder(data), self.val_raw.decoder(data)),
             succ: OpListDecoder::new(
-                RleDecoder::from(Cow::Borrowed(&data[self.succ_group.clone()])),
-                RleDecoder::from(Cow::Borrowed(&data[self.succ_actor.clone()])),
-                DeltaDecoder::from(Cow::Borrowed(&data[self.succ_ctr.clone()])),
+                self.succ_group.decoder(data),
+                self.succ_actor.decoder(data),
+                self.succ_ctr.decoder(data),
             ),
         }
     }
@@ -62,7 +56,7 @@ impl DocOpColumns {
 
 pub(crate) struct DocOpColumnIter<'a> {
     id: OpIdDecoder<'a>,
-    action: RleDecoder<'a, usize>,
+    action: RleDecoder<'a, u64>,
     objs: ObjDecoder<'a>,
     keys: KeyDecoder<'a>,
     insert: BooleanDecoder<'a>,
@@ -103,7 +97,7 @@ impl<'a> Iterator for DocOpColumnIter<'a> {
             Some(DocOp {
                 id,
                 value,
-                action,
+                action: action as usize,
                 object: obj,
                 key,
                 succ,
@@ -179,20 +173,20 @@ impl TryFrom<ColumnLayout> for DocOpColumns {
             }
         }
         Ok(DocOpColumns {
-            actor: obj_actor.ok_or(Error::NotEnoughColumns)?,
-            ctr: obj_ctr.ok_or(Error::NotEnoughColumns)?,
-            key_actor: key_actor.ok_or(Error::NotEnoughColumns)?,
-            key_ctr: key_ctr.ok_or(Error::NotEnoughColumns)?,
-            key_str: key_str.ok_or(Error::NotEnoughColumns)?,
-            id_actor: id_actor.ok_or(Error::NotEnoughColumns)?,
-            id_ctr: id_ctr.ok_or(Error::NotEnoughColumns)?,
-            insert: insert.ok_or(Error::NotEnoughColumns)?,
-            action: action.ok_or(Error::NotEnoughColumns)?,
-            val_meta: val_meta.ok_or(Error::NotEnoughColumns)?,
-            val_raw: val_raw.ok_or(Error::NotEnoughColumns)?,
-            succ_group: succ_group.ok_or(Error::NotEnoughColumns)?,
-            succ_actor: succ_actor.ok_or(Error::NotEnoughColumns)?,
-            succ_ctr: succ_ctr.ok_or(Error::NotEnoughColumns)?,
+            actor: obj_actor.ok_or(Error::NotEnoughColumns)?.into(),
+            ctr: obj_ctr.ok_or(Error::NotEnoughColumns)?.into(),
+            key_actor: key_actor.ok_or(Error::NotEnoughColumns)?.into(),
+            key_ctr: key_ctr.ok_or(Error::NotEnoughColumns)?.into(),
+            key_str: key_str.ok_or(Error::NotEnoughColumns)?.into(),
+            id_actor: id_actor.ok_or(Error::NotEnoughColumns)?.into(),
+            id_ctr: id_ctr.ok_or(Error::NotEnoughColumns)?.into(),
+            insert: insert.ok_or(Error::NotEnoughColumns)?.into(),
+            action: action.ok_or(Error::NotEnoughColumns)?.into(),
+            val_meta: val_meta.ok_or(Error::NotEnoughColumns)?.into(),
+            val_raw: val_raw.ok_or(Error::NotEnoughColumns)?.into(),
+            succ_group: succ_group.ok_or(Error::NotEnoughColumns)?.into(),
+            succ_actor: succ_actor.ok_or(Error::NotEnoughColumns)?.into(),
+            succ_ctr: succ_ctr.ok_or(Error::NotEnoughColumns)?.into(),
             other,
         })
     }

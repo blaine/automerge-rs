@@ -3,22 +3,12 @@ use std::{
     ops::Range,
 };
 
-use super::column_layout::column::{Column, GroupedColumn, SimpleColType};
-use super::value::CellValue;
-use crate::decoding::{BooleanDecoder, DeltaDecoder, RleDecoder};
+use crate::{
+    decoding::{BooleanDecoder, Decoder, DeltaDecoder, RleDecoder},
+    columnar_2::rowblock::{value::CellValue, column_layout::column::{Column, GroupedColumn, SimpleColType}}
+};
 
-mod interned_key_decoder;
-pub(crate) use interned_key_decoder::InternedKeyDecoder;
-mod key_decoder;
-pub(crate) use key_decoder::KeyDecoder;
-mod obj_decoder;
-pub(crate) use obj_decoder::ObjDecoder;
-mod op_list_decoder;
-pub(crate) use op_list_decoder::OpListDecoder;
-mod opid_decoder;
-pub(crate) use opid_decoder::OpIdDecoder;
-mod value_decoder;
-pub(crate) use value_decoder::ValueDecoder;
+use super::ValueDecoder;
 
 pub(crate) enum SimpleColDecoder<'a> {
     RleUint(RleDecoder<'a, u64>),
@@ -60,7 +50,7 @@ impl<'a> SimpleColDecoder<'a> {
     }
 }
 
-pub(crate) enum ColDecoder<'a> {
+pub(crate) enum GenericColDecoder<'a> {
     Simple(SimpleColDecoder<'a>),
     Group {
         num: RleDecoder<'a, u64>,
@@ -68,16 +58,16 @@ pub(crate) enum ColDecoder<'a> {
     },
 }
 
-impl<'a> ColDecoder<'a> {
-    pub(crate) fn from_col(col: &'a Column, data: &'a [u8]) -> ColDecoder<'a> {
+impl<'a> GenericColDecoder<'a> {
+    pub(crate) fn from_col(col: &'a Column, data: &'a [u8]) -> GenericColDecoder<'a> {
         match col {
             Column::Single(_, col_type, range) => {
                 let data = &data[Range::from(range)];
                 Self::Simple(SimpleColDecoder::from_type(*col_type, data))
             }
             Column::Value { meta, value, .. } => Self::Simple(SimpleColDecoder::Value(ValueDecoder::new(
-                &data[Range::from(meta)],
-                &data[Range::from(value)],
+                RleDecoder::from(Cow::Borrowed(&data[Range::from(meta)])),
+                Decoder::from(Cow::Borrowed(&data[Range::from(value)])),
             ))),
             Column::Group { num, values, .. } => {
                 let num_coder = RleDecoder::from(Cow::from(&data[Range::from(num)]));
@@ -88,8 +78,8 @@ impl<'a> ColDecoder<'a> {
                             SimpleColDecoder::from_type(*col_type, &data[Range::from(d)])
                         }
                         GroupedColumn::Value { meta, value } => SimpleColDecoder::Value(ValueDecoder::new(
-                            &data[Range::from(meta)],
-                            &data[Range::from(value)],
+                            RleDecoder::from(Cow::Borrowed(&data[Range::from(meta)])),
+                            Decoder::from(Cow::Borrowed(&data[Range::from(value)])),
                         )),
                     })
                     .collect();

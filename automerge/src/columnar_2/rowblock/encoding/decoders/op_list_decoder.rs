@@ -1,18 +1,18 @@
 use crate::{
-    columnar_2::rowblock::row_ops::{ActorIndex, OpId},
+    types::OpId,
     decoding::{DeltaDecoder, RleDecoder},
 };
 
 pub(crate) struct OpListDecoder<'a> {
-    num: RleDecoder<'a, usize>,
-    actor: RleDecoder<'a, usize>,
+    num: RleDecoder<'a, u64>,
+    actor: RleDecoder<'a, u64>,
     ctr: DeltaDecoder<'a>,
 }
 
 impl<'a> OpListDecoder<'a> {
     pub(crate) fn new(
-        num: RleDecoder<'a, usize>,
-        actor: RleDecoder<'a, usize>,
+        num: RleDecoder<'a, u64>,
+        actor: RleDecoder<'a, u64>,
         ctr: DeltaDecoder<'a>,
     ) -> Self {
         Self { num, actor, ctr }
@@ -28,11 +28,11 @@ impl<'a> Iterator for OpListDecoder<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let num = self.num.next()??;
-        let mut p = Vec::with_capacity(num);
+        let mut p = Vec::with_capacity(num as usize);
         for _ in 0..num {
-            let actor = ActorIndex::new(self.actor.next()??);
+            let actor = self.actor.next()??;
             let ctr = self.ctr.next()??;
-            p.push(OpId::new(actor, ctr));
+            p.push(OpId(actor, ctr as usize));
         }
         Some(p)
     }

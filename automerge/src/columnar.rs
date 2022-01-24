@@ -5,6 +5,7 @@ use std::{
     borrow::Cow,
     cmp::Ordering,
     collections::HashMap,
+    convert::TryFrom,
     io,
     io::{Read, Write},
     ops::Range,
@@ -1285,6 +1286,14 @@ const ACTIONS: [Action; 7] = [
     Action::Inc,
     Action::MakeTable,
 ];
+
+impl TryFrom<u64> for Action {
+    type Error = u64;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        ACTIONS.get(value as usize).copied().ok_or(value)
+    }
+}
 
 impl Decodable for Action {
     fn decode<R>(bytes: &mut R) -> Option<Self>

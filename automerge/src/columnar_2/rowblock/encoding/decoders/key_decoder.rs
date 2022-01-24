@@ -1,19 +1,20 @@
 use  smol_str::SmolStr;
 
 use crate::{
-    columnar_2::rowblock::row_ops::{Key, ElemId, ActorIndex, OpId},
+    types::{ElemId, OpId},
+    columnar_2::rowblock::row_ops::Key,
     decoding::{RleDecoder, DeltaDecoder},
 };
 
 
 pub(crate) struct KeyDecoder<'a> {
-    actor: RleDecoder<'a, usize>,
+    actor: RleDecoder<'a, u64>,
     ctr: DeltaDecoder<'a>,
     str: RleDecoder<'a, SmolStr>,
 }
 
 impl<'a> KeyDecoder<'a> {
-    pub(crate) fn new(actor: RleDecoder<'a, usize>, ctr: DeltaDecoder<'a>, str: RleDecoder<'a, SmolStr>) -> Self {
+    pub(crate) fn new(actor: RleDecoder<'a, u64>, ctr: DeltaDecoder<'a>, str: RleDecoder<'a, SmolStr>) -> Self {
         Self{ 
             actor,
             ctr,
@@ -32,9 +33,9 @@ impl<'a> Iterator for KeyDecoder<'a> {
     fn next(&mut self) -> Option<Key> {
         match (self.actor.next()?, self.ctr.next()?, self.str.next()?) {
             (None, None, Some(string)) => Some(Key::Prop(string)),
-            (None, Some(0), None) => Some(Key::Elem(ElemId::Head)),
+            (None, Some(0), None) => Some(Key::Elem(ElemId(OpId(0, 0)))),
             (Some(actor), Some(ctr), None) => {
-                Some(Key::Elem(ElemId::Op(OpId::new(ActorIndex::new(actor), ctr))))
+                Some(Key::Elem(ElemId(OpId(actor, ctr as usize))))
             }
             // TODO: This should be fallible and throw here
             _ => None,

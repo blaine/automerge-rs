@@ -4,9 +4,11 @@ use self::column_layout::DocOpColumns;
 
 use super::{ColumnId, ColumnSpec};
 
-mod col_decoders;
 mod column_layout;
 use column_layout::{BadColumnLayout, ColumnLayout};
+mod column_range;
+mod encoding;
+use encoding::decoders::GenericColDecoder;
 mod row_ops;
 mod value;
 use value::CellValue;
@@ -46,14 +48,14 @@ impl<'a> IntoIterator for &'a RowBlock<ColumnLayout> {
             decoders: self
                 .columns
                 .iter()
-                .map(|c| (c.id(), col_decoders::ColDecoder::from_col(c, &self.data)))
+                .map(|c| (c.id(), GenericColDecoder::from_col(c, &self.data)))
                 .collect(),
         }
     }
 }
 
 pub(crate) struct RowBlockIter<'a> {
-    decoders: Vec<(ColumnId, col_decoders::ColDecoder<'a>)>,
+    decoders: Vec<(ColumnId, GenericColDecoder<'a>)>,
 }
 
 impl<'a> Iterator for RowBlockIter<'a> {

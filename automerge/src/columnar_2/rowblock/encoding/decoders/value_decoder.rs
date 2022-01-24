@@ -1,6 +1,6 @@
-use std::{borrow::Cow, convert::TryInto};
+use std::convert::TryInto;
 
-use crate::{columnar_2::rowblock::value::{CellValue, PrimVal}, decoding::{RleDecoder, Decoder}};
+use crate::{columnar_2::rowblock::value::PrimVal, decoding::{RleDecoder, Decoder}};
 
 
 pub(crate) struct ValueDecoder<'a> {
@@ -9,10 +9,10 @@ pub(crate) struct ValueDecoder<'a> {
 }
 
 impl<'a> ValueDecoder<'a> {
-    pub(crate) fn new(meta: &'a[u8], raw: &'a [u8]) -> ValueDecoder<'a> {
+    pub(crate) fn new(meta: RleDecoder<'a, u64>, raw: Decoder<'a>) -> ValueDecoder<'a> {
         ValueDecoder {
-            meta: RleDecoder::from(Cow::from(meta)),
-            raw: Decoder::from(Cow::from(raw)),
+            meta,
+            raw,
         }
     }
 
