@@ -16,7 +16,7 @@ macro_rules! make_col_range({$name: ident, $decoder_name: ident$(<$($dparam: tt)
             $decoder_name::from(Cow::Borrowed(&data[self.0.clone()]))
         }
 
-        pub(crate) fn encoder<'a>(&self, output: &'a mut [u8]) -> $encoder_name $(<$($eparam,)+>)* {
+        pub(crate) fn encoder<'a>(&self, output: &'a mut Vec<u8>) -> $encoder_name $(<$($eparam,)+>)* {
             $encoder_name::from(output)
         }
     }

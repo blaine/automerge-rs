@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use super::{Encodable, RawDecoder};
+use super::{Encodable, RawDecoder, Source};
 
 /// Encodes booleans by storing the count of the same value.
 ///
@@ -9,16 +9,16 @@ use super::{Encodable, RawDecoder};
 ///
 /// Counts are encoded as usize.
 pub(crate) struct BooleanEncoder<'a> {
-    start_len: usize,
-    buf: &'a mut [u8],
+    written: usize,
+    buf: &'a mut Vec<u8>,
     last: bool,
     count: usize,
 }
 
 impl<'a> BooleanEncoder<'a> {
-    pub fn new(output: &'a mut [u8]) -> BooleanEncoder<'a> {
+    pub fn new(output: &'a mut Vec<u8>) -> BooleanEncoder<'a> {
         BooleanEncoder {
-            start_len: output.len(),
+            written: 0,
             buf: output,
             last: false,
             count: 0,
@@ -29,7 +29,7 @@ impl<'a> BooleanEncoder<'a> {
         if value == self.last {
             self.count += 1;
         } else {
-            self.count.encode(&mut self.buf);
+            self.written += self.count.encode(&mut self.buf);
             self.last = value;
             self.count = 1;
         }
@@ -37,14 +37,14 @@ impl<'a> BooleanEncoder<'a> {
 
     pub fn finish(mut self) -> usize {
         if self.count > 0 {
-            self.count.encode(&mut self.buf);
+            self.written += self.count.encode(&mut self.buf);
         }
-        self.start_len - self.buf.len()
+        self.written
     }
 }
 
-impl<'a> From<&'a mut [u8]> for BooleanEncoder<'a> {
-    fn from(output: &'a mut [u8]) -> Self {
+impl<'a> From<&'a mut Vec<u8>> for BooleanEncoder<'a> {
+    fn from(output: &'a mut Vec<u8>) -> Self {
         BooleanEncoder::new(output)
     }
 }
@@ -92,6 +92,12 @@ impl<'a> Iterator for BooleanDecoder<'a> {
         }
         self.count -= 1;
         Some(self.last_value)
+    }
+}
+
+impl<'a> Source for BooleanDecoder<'a> {
+    fn done(&self) -> bool {
+        BooleanDecoder::done(self)
     }
 }
 

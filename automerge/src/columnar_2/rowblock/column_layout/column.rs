@@ -1,6 +1,9 @@
-use std::ops::Range;
+use std::ops::{Range, RangeBounds};
 
-use super::super::{ColumnId, ColumnSpec};
+use super::{
+    super::{encoding::SimpleColDecoder, CellValue, ColumnId, ColumnSpec},
+    ColumnSpliceError,
+};
 
 #[derive(Clone)]
 pub(crate) enum Column {
@@ -23,6 +26,28 @@ impl Column {
             Self::Single(_, _, r) => r.into(),
             Self::Value { meta, value, .. } => (meta.start..value.end),
             Self::Group { num, values, .. } => (num.start..values.last().unwrap().range().end),
+        }
+    }
+
+    pub(crate) fn splice<F>(
+        &self,
+        source: &[u8],
+        output: &mut Vec<u8>,
+        output_start: usize,
+        replace: Range<usize>,
+        replace_with: F,
+    ) -> Result<Self, ColumnSpliceError>
+    where
+        F: Fn(usize) -> Option<CellValue>,
+    {
+        match self {
+            Self::Single(s, t, range) => {
+                let mut decoder = SimpleColDecoder::from_type(*t, &source[Range::from(range)]);
+                let end = decoder.splice(output, replace, replace_with)? + output_start;
+                Ok(Self::Single(*s, *t, (output_start..end).into()))
+            }
+            Self::Value { .. } => unimplemented!(),
+            Self::Group { .. } => unimplemented!(),
         }
     }
 }

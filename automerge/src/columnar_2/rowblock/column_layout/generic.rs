@@ -28,6 +28,10 @@ impl ColumnLayout {
     pub(crate) fn append(&mut self, col: Column) {
         self.0.push(col)
     }
+
+    pub(crate) fn unsafe_from_vec(v: Vec<Column>) -> Self {
+        Self(v)
+    }
 }
 
 impl IntoIterator for ColumnLayout {
@@ -129,6 +133,7 @@ impl ColumnLayoutParser {
         range: Range<usize>,
     ) -> Result<(), BadColumnLayout> {
         self.check_contiguous(&range)?;
+        self.check_bounds(&range)?;
         if let Some(last_spec) = self.last_spec {
             if last_spec.normalize() > column.normalize() {
                 return Err(BadColumnLayout::OutOfOrder);

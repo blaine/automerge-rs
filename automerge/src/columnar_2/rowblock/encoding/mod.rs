@@ -9,11 +9,11 @@ pub(crate) use delta::{DeltaDecoder, DeltaEncoder};
 mod value;
 pub(crate) use value::ValueDecoder;
 mod generic;
-pub(crate) use generic::GenericColDecoder;
+pub(crate) use generic::{GenericColDecoder, SimpleColDecoder};
 mod opid;
 pub(crate) use opid::OpIdDecoder;
 mod opid_list;
-pub(crate) use opid_list::OpIdListDecoder;
+pub(crate) use opid_list::{OpIdListDecoder, OpIdListEncoder};
 mod obj_id;
 pub(crate) use obj_id::ObjDecoder;
 mod key;
@@ -24,7 +24,7 @@ pub(crate) use interned_key::InternedKeyDecoder;
 
 
 pub(crate) trait Encodable {
-    fn encode(&self, buf: &mut [u8]);
+    fn encode(&self, out: &mut Vec<u8>) -> usize;
 }
 mod encodable_impls;
 
@@ -44,3 +44,7 @@ pub(crate) trait Sink {
     fn finish(self) -> usize;
 }
 
+
+pub(crate) trait Source: Iterator {
+    fn done(&self) -> bool;
+}

@@ -1,11 +1,14 @@
 use std::{
     borrow::Cow,
-    ops::Range,
+    ops::{Range, RangeBounds, Bounds},
 };
 
-use crate::columnar_2::rowblock::{value::CellValue, column_layout::column::{Column, GroupedColumn, SimpleColType}};
+use crate::columnar_2::rowblock::{
+    column_layout::{ColumnSpliceError, column::{Column, GroupedColumn, SimpleColType}},
+    value::CellValue,
+};
 
-use super::{RawDecoder, RleDecoder, ValueDecoder, DeltaDecoder, BooleanDecoder};
+use super::{BooleanDecoder, DeltaDecoder, RawDecoder, RleDecoder, Source, ValueDecoder, RleEncoder};
 
 pub(crate) enum SimpleColDecoder<'a> {
     RleUint(RleDecoder<'a, u64>),
@@ -16,7 +19,7 @@ pub(crate) enum SimpleColDecoder<'a> {
 }
 
 impl<'a> SimpleColDecoder<'a> {
-    fn from_type(col_type: SimpleColType, data: &'a [u8]) -> SimpleColDecoder<'a> {
+    pub(crate) fn from_type(col_type: SimpleColType, data: &'a [u8]) -> SimpleColDecoder<'a> {
         match col_type {
             SimpleColType::Actor => Self::RleUint(RleDecoder::from(Cow::from(data))),
             SimpleColType::Integer => Self::RleUint(RleDecoder::from(Cow::from(data))),
@@ -26,7 +29,7 @@ impl<'a> SimpleColDecoder<'a> {
         }
     }
 
-    fn done(&self) -> bool {
+    pub(crate) fn done(&self) -> bool {
         match self {
             Self::RleUint(d) => d.done(),
             Self::RleString(d) => d.done(),
@@ -36,13 +39,47 @@ impl<'a> SimpleColDecoder<'a> {
         }
     }
 
-    fn next(&mut self) -> Option<CellValue> {
+    pub(crate) fn next(&mut self) -> Option<CellValue> {
         match self {
             Self::RleUint(d) => d.next().and_then(|i| i.map(CellValue::Uint)),
             Self::RleString(d) => d.next().and_then(|s| s.map(CellValue::String)),
             Self::Delta(d) => d.next().and_then(|i| i.map(CellValue::Uint)),
             Self::Bool(d) => d.next().map(CellValue::Bool),
             Self::Value(value) => value.next().map(CellValue::Value),
+        }
+    }
+
+    pub(crate) fn splice<F: Fn(usize) -> Option<CellValue>>(
+        &mut self,
+        out: &mut Vec<u8>,
+        replace: Range<usize>,
+        replace_with: F,
+    ) -> Result<usize, ColumnSpliceError> {
+        match self {
+            Self::RleUint(d) => {
+                let encoder = RleEncoder::from(out);
+                let mut idx = 0;
+                while idx < replace.start {
+                    let val = d.next().unwrap_or(None);
+                    encoder.append(val);
+                    idx += 1;
+                }
+                for i in 0..replace.len() {
+                    let val = match replace_with(i) {
+                        Some(CellValue::Uint(i)) => Some(i),
+                        Some(_) => return Err(ColumnSpliceError::InvalidValueForRow(i)),
+                        None => None,
+                    };
+                    encoder.append(val);
+                }
+                while !d.done() {
+                    let val = d.next().unwrap_or(None);
+                    encoder.append(val);
+                    idx += 1;
+                }
+                Ok(encoder.finish())
+            },
+            _ => unimplemented!(),
         }
     }
 }
@@ -62,10 +99,12 @@ impl<'a> GenericColDecoder<'a> {
                 let data = &data[Range::from(range)];
                 Self::Simple(SimpleColDecoder::from_type(*col_type, data))
             }
-            Column::Value { meta, value, .. } => Self::Simple(SimpleColDecoder::Value(ValueDecoder::new(
-                RleDecoder::from(Cow::Borrowed(&data[Range::from(meta)])),
-                RawDecoder::from(Cow::Borrowed(&data[Range::from(value)])),
-            ))),
+            Column::Value { meta, value, .. } => {
+                Self::Simple(SimpleColDecoder::Value(ValueDecoder::new(
+                    RleDecoder::from(Cow::Borrowed(&data[Range::from(meta)])),
+                    RawDecoder::from(Cow::Borrowed(&data[Range::from(value)])),
+                )))
+            }
             Column::Group { num, values, .. } => {
                 let num_coder = RleDecoder::from(Cow::from(&data[Range::from(num)]));
                 let values = values
@@ -74,10 +113,12 @@ impl<'a> GenericColDecoder<'a> {
                         GroupedColumn::Single(_, col_type, d) => {
                             SimpleColDecoder::from_type(*col_type, &data[Range::from(d)])
                         }
-                        GroupedColumn::Value { meta, value } => SimpleColDecoder::Value(ValueDecoder::new(
-                            RleDecoder::from(Cow::Borrowed(&data[Range::from(meta)])),
-                            RawDecoder::from(Cow::Borrowed(&data[Range::from(value)])),
-                        )),
+                        GroupedColumn::Value { meta, value } => {
+                            SimpleColDecoder::Value(ValueDecoder::new(
+                                RleDecoder::from(Cow::Borrowed(&data[Range::from(meta)])),
+                                RawDecoder::from(Cow::Borrowed(&data[Range::from(value)])),
+                            ))
+                        }
                     })
                     .collect();
                 Self::Group {
@@ -113,5 +154,19 @@ impl<'a> GenericColDecoder<'a> {
                 _ => Some(CellValue::List(Vec::new())),
             },
         }
+    }
+}
+
+impl<'a> Iterator for GenericColDecoder<'a> {
+    type Item = CellValue;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        GenericColDecoder::next(self)
+    }
+}
+
+impl<'a> Source for GenericColDecoder<'a> {
+    fn done(&self) -> bool {
+        GenericColDecoder::done(self)
     }
 }

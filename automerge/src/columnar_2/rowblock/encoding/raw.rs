@@ -60,17 +60,22 @@ impl<'a> RawDecoder<'a> {
 
 
 pub(crate) struct RawEncoder<'a> {
-    output: &'a mut [u8],
+    written: usize,
+    output: &'a mut Vec<u8>,
 }
 
 impl<'a> RawEncoder<'a> {
-    fn append(&mut self, value: &[u8]) -> usize {
-        self.output.write(value).unwrap()
+    fn append(&mut self, value: &[u8]) {
+        self.written += self.output.write(value).unwrap();
+    }
+
+    fn finish(self) -> usize {
+        self.written
     }
 }
 
-impl<'a> From<&'a mut [u8]> for RawEncoder<'a> {
-    fn from(output: &'a mut [u8]) -> Self {
-        RawEncoder{ output }
+impl<'a> From<&'a mut Vec<u8>> for RawEncoder<'a> {
+    fn from(output: &'a mut Vec<u8>) -> Self {
+        RawEncoder{ written: 0, output }
     }
 }

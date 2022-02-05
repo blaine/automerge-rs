@@ -1,6 +1,6 @@
 use crate::types::OpId;
 
-use super::{RleDecoder, DeltaDecoder};
+use super::{RleEncoder, RleDecoder, DeltaEncoder, DeltaDecoder};
 
 
 pub(crate) struct OpIdDecoder<'a> {
@@ -32,3 +32,31 @@ impl<'a> Iterator for OpIdDecoder<'a> {
         }
     }
 }
+
+pub(crate) struct OpIdEncoder<'a> {
+    actor: RleEncoder<'a, u64>,
+    ctr: DeltaEncoder<'a>,
+}
+
+impl<'a> OpIdEncoder<'a> {
+    fn new(actor: RleEncoder<'a, u64>, ctr: DeltaEncoder<'a>) -> Self {
+        Self{
+            actor,
+            ctr,
+        }
+    }
+
+    fn append_value(&mut self, opid: Option<OpId>) {
+        match opid {
+            None => {
+                self.actor.append_null();
+                self.ctr.append_null();
+            },
+            Some(opid) => {
+                self.actor.append_value(opid.actor() as u64);
+                self.ctr.append_value(opid.counter());
+            }
+        }
+    }
+}
+

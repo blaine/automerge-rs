@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use super::{RleEncoder, RleDecoder};
+use super::{RleEncoder, RleDecoder, Source};
 
 /// Encodes integers as the change since the previous value.
 ///
@@ -13,7 +13,7 @@ pub(crate) struct DeltaEncoder<'a> {
 }
 
 impl<'a> DeltaEncoder<'a> {
-    pub fn new(output: &'a mut [u8]) -> DeltaEncoder<'a> {
+    pub fn new(output: &'a mut Vec<u8>) -> DeltaEncoder<'a> {
         DeltaEncoder {
             rle: RleEncoder::new(output),
             absolute_value: 0,
@@ -35,8 +35,8 @@ impl<'a> DeltaEncoder<'a> {
     }
 }
 
-impl<'a> From<&'a mut [u8]> for DeltaEncoder<'a> {
-    fn from(output: &'a mut [u8]) -> Self {
+impl<'a> From<&'a mut Vec<u8>> for DeltaEncoder<'a> {
+    fn from(output: &'a mut Vec<u8>) -> Self {
         DeltaEncoder::new(output) 
     }
 }
@@ -76,6 +76,12 @@ impl<'a> Iterator for DeltaDecoder<'a> {
         } else {
             Some(None)
         }
+    }
+}
+
+impl<'a> Source for DeltaDecoder<'a> {
+    fn done(&self) -> bool {
+        DeltaDecoder::done(self)
     }
 }
 

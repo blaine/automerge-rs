@@ -5,3 +5,10 @@ pub(crate) mod op_tree_columns;
 
 pub(crate) use generic::{BadColumnLayout, ColumnLayout};
 pub(crate) use doc_op_columns::{DocOpColumns, Error as ParseDocColumnError};
+
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum ColumnSpliceError {
+    #[error("invalid value for row {0}")]
+    InvalidValueForRow(usize),
+}
+

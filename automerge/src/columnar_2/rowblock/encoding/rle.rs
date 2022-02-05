@@ -3,14 +3,14 @@ use std::{
     fmt::Debug,
 };
 
-use super::{Encodable, Decodable, RawDecoder, Sink};
+use super::{Encodable, Decodable, RawDecoder, Sink, Source};
 
 pub(crate) struct RleEncoder<'a, T>
 where
     T: Encodable + PartialEq + Clone,
 {
-    start_len: usize,
-    buf: &'a mut [u8],
+    buf: &'a mut Vec<u8>,
+    written: usize,
     state: RleState<T>,
 }
 
@@ -18,10 +18,10 @@ impl<'a, T> RleEncoder<'a, T>
 where
     T: Encodable + PartialEq + Clone,
 {
-    pub fn new(output_buf: &'a mut [u8]) -> RleEncoder<'a, T> {
+    pub fn new(output_buf: &'a mut Vec<u8>) -> RleEncoder<'a, T> {
         RleEncoder {
-            start_len: output_buf.len(),
             buf: output_buf,
+            written: 0,
             state: RleState::Empty,
         }
     }
@@ -42,7 +42,7 @@ where
             }
             RleState::Empty => {}
         }
-        self.start_len - self.buf.len()
+        self.written
     }
 
     fn flush_run(&mut self, val: &T, len: usize) {
@@ -124,11 +124,18 @@ where
         }
     }
 
+    pub fn append(&mut self, value: Option<T>) {
+        match value {
+            Some(t) => self.append_value(t),
+            None => self.append_null(),
+        }
+    }
+
     fn encode<V>(&mut self, val: &V)
     where
         V: Encodable,
     {
-        val.encode(&mut self.buf);
+        self.written += val.encode(&mut self.buf);
     }
 }
 
@@ -155,8 +162,8 @@ impl<'a, T: Clone + PartialEq + Encodable> Sink for RleEncoder<'a, T> {
     }
 }
 
-impl<'a, T: Clone + PartialEq + Encodable> From<&'a mut [u8]> for RleEncoder<'a, T> {
-    fn from(output: &'a mut [u8]) -> Self {
+impl<'a, T: Clone + PartialEq + Encodable> From<&'a mut Vec<u8>> for RleEncoder<'a, T> {
+    fn from(output: &'a mut Vec<u8>) -> Self {
         Self::new(output) 
     }
 }
@@ -232,6 +239,15 @@ where
         } else {
             Some(self.last_value.clone())
         }
+    }
+}
+
+impl<'a, T> Source for RleDecoder<'a, T>
+where
+    T: Clone + Debug + Decodable,
+{
+    fn done(&self) -> bool {
+        RleDecoder::done(self)
     }
 }
 

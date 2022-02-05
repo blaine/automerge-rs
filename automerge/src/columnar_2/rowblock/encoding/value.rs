@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use super::{RawDecoder, RleDecoder};
+use super::{RawDecoder, RleDecoder, Source};
 use crate::columnar_2::rowblock::value::PrimVal;
 
 
@@ -73,9 +73,24 @@ impl<'a> ValueDecoder<'a> {
                         Some(PrimVal::Bytes(raw.to_vec()))
                     }
                 }
-            }
+            },
+            Some(None) => Some(PrimVal::Null),
             _ => None,
         }
+    }
+}
+
+impl<'a> Iterator for ValueDecoder<'a> {
+    type Item = PrimVal;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        ValueDecoder::next(self)
+    }
+}
+
+impl<'a> Source for ValueDecoder<'a> {
+    fn done(&self) -> bool {
+        ValueDecoder::done(self)
     }
 }
 

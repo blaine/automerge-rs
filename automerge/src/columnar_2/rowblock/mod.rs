@@ -5,13 +5,14 @@ use self::column_layout::DocOpColumns;
 use super::{ColumnId, ColumnSpec};
 
 mod column_layout;
-use column_layout::{BadColumnLayout, ColumnLayout};
+pub(crate) use column_layout::{BadColumnLayout, ColumnLayout};
 mod column_range;
 mod encoding;
 use encoding::GenericColDecoder;
+mod generic;
 mod row_ops;
 mod value;
-use value::CellValue;
+pub(crate) use value::{PrimVal, CellValue};
 
 pub(crate) struct RowBlock<C> {
     columns: C,
@@ -40,7 +41,7 @@ impl RowBlock<ColumnLayout> {
 }
 
 impl<'a> IntoIterator for &'a RowBlock<ColumnLayout> {
-    type Item = Vec<(ColumnId, Option<CellValue>)>;
+    type Item = Vec<(usize, Option<CellValue>)>;
     type IntoIter = RowBlockIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -59,15 +60,15 @@ pub(crate) struct RowBlockIter<'a> {
 }
 
 impl<'a> Iterator for RowBlockIter<'a> {
-    type Item = Vec<(ColumnId, Option<CellValue>)>;
+    type Item = Vec<(usize, Option<CellValue>)>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.decoders.iter().all(|(_, d)| d.done()) {
             None
         } else {
             let mut result = Vec::with_capacity(self.decoders.len());
-            for (col_id, decoder) in &mut self.decoders {
-                result.push((*col_id, decoder.next()));
+            for (col_index, (_, decoder)) in self.decoders.iter_mut().enumerate() {
+                result.push((col_index, decoder.next()));
             }
             Some(result)
         }
