@@ -1,7 +1,6 @@
-use crate::{
-    types::OpId,
-    decoding::{RleDecoder, DeltaDecoder},
-};
+use crate::types::OpId;
+
+use super::{RleDecoder, DeltaDecoder};
 
 
 pub(crate) struct OpIdDecoder<'a> {

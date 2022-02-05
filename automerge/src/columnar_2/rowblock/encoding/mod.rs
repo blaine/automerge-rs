@@ -1,47 +1,46 @@
-pub mod decoders;
-pub mod encoders;
+mod raw;
+pub(crate) use raw::{RawEncoder, RawDecoder};
+mod rle;
+pub(crate) use rle::{RleEncoder, RleDecoder};
+mod boolean;
+pub(crate) use boolean::{BooleanDecoder, BooleanEncoder};
+mod delta;
+pub(crate) use delta::{DeltaDecoder, DeltaEncoder};
+mod value;
+pub(crate) use value::ValueDecoder;
+mod generic;
+pub(crate) use generic::GenericColDecoder;
+mod opid;
+pub(crate) use opid::OpIdDecoder;
+mod opid_list;
+pub(crate) use opid_list::OpIdListDecoder;
+mod obj_id;
+pub(crate) use obj_id::ObjDecoder;
+mod key;
+pub(crate) use key::KeyDecoder;
+mod interned_key;
+pub(crate) use interned_key::InternedKeyDecoder;
 
-#[cfg(test)]
-mod tests {
-    use std::borrow::Cow;
-    use super::*;
 
-    #[test]
-    fn rle_int_round_trip() {
-        let vals = [1,1,2,2,3,2,3,1,3];
-        let mut buf = vec![0; vals.len() * 3];
-        let mut encoder: encoders::RleEncoder<'_, u64> = encoders::RleEncoder::new(&mut buf);
-        for val in vals {
-            encoder.append_value(val)
-        }
-        let total_slice_len = encoder.finish();
-        let mut decoder: decoders::RleDecoder<'_, u64> = decoders::RleDecoder::from(Cow::Borrowed(&buf[0..total_slice_len]));
-        let mut result = Vec::new();
-        while let Some(Some(val)) = decoder.next() {
-            result.push(val);
-        }
-        assert_eq!(result, vals);
-    }
 
-    #[test]
-    fn rle_int_insert() {
-        let vals = [1,1,2,2,3,2,3,1,3];
-        let mut buf = vec![0; vals.len() * 3];
-        let mut encoder: encoders::RleEncoder<'_, u64> = encoders::RleEncoder::new(&mut buf);
-        for i in 0..4 {
-            encoder.append_value(vals[i])
-        }
-        encoder.append_value(5);
-        for i in 4..vals.len() {
-            encoder.append_value(vals[i]);
-        }
-        let total_slice_len = encoder.finish();
-        let mut decoder: decoders::RleDecoder<'_, u64> = decoders::RleDecoder::from(Cow::Borrowed(&buf[0..total_slice_len]));
-        let mut result = Vec::new();
-        while let Some(Some(val)) = decoder.next() {
-            result.push(val);
-        }
-        let expected = [1,1,2,2,5,3,2,3,1,3];
-        assert_eq!(result, expected);
-    }
+pub(crate) trait Encodable {
+    fn encode(&self, buf: &mut [u8]);
 }
+mod encodable_impls;
+
+pub(crate) trait Decodable: Sized {
+    fn decode<R>(bytes: &mut R) -> Option<Self>
+    where
+        R: std::io::Read;
+}
+mod decodable_impls;
+
+
+pub(crate) trait Sink {
+    type Item;
+
+    fn append(&mut self, item: Option<Self::Item>);
+
+    fn finish(self) -> usize;
+}
+

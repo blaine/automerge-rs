@@ -1,7 +1,6 @@
-use crate::{
-    decoding::{DeltaDecoder, RleDecoder},
-    types::{ElemId, Key, OpId},
-};
+use crate::types::{ElemId, Key, OpId};
+
+use super::{DeltaDecoder, RleDecoder};
 
 pub(crate) struct InternedKeyDecoder<'a> {
     actor: RleDecoder<'a, u64>,

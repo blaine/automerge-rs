@@ -1,7 +1,6 @@
-use crate::{
-    types::{OpId, ObjId},
-    decoding::RleDecoder,
-};
+use crate::types::{OpId, ObjId};
+
+use super::RleDecoder;
 
 pub(crate) struct ObjDecoder<'a> {
     actor: RleDecoder<'a, u64>,

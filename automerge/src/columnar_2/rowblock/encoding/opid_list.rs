@@ -1,15 +1,14 @@
-use crate::{
-    types::OpId,
-    decoding::{DeltaDecoder, RleDecoder},
-};
+use crate::types::OpId;
 
-pub(crate) struct OpListDecoder<'a> {
+use super::{DeltaDecoder, RleDecoder};
+
+pub(crate) struct OpIdListDecoder<'a> {
     num: RleDecoder<'a, u64>,
     actor: RleDecoder<'a, u64>,
     ctr: DeltaDecoder<'a>,
 }
 
-impl<'a> OpListDecoder<'a> {
+impl<'a> OpIdListDecoder<'a> {
     pub(crate) fn new(
         num: RleDecoder<'a, u64>,
         actor: RleDecoder<'a, u64>,
@@ -23,7 +22,7 @@ impl<'a> OpListDecoder<'a> {
     }
 }
 
-impl<'a> Iterator for OpListDecoder<'a> {
+impl<'a> Iterator for OpIdListDecoder<'a> {
     type Item = Vec<OpId>;
 
     fn next(&mut self) -> Option<Self::Item> {

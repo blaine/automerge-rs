@@ -1,15 +1,16 @@
 use std::convert::TryInto;
 
-use crate::{columnar_2::rowblock::value::PrimVal, decoding::{RleDecoder, Decoder}};
+use super::{RawDecoder, RleDecoder};
+use crate::columnar_2::rowblock::value::PrimVal;
 
 
 pub(crate) struct ValueDecoder<'a> {
     meta: RleDecoder<'a, u64>,
-    raw: Decoder<'a>,
+    raw: RawDecoder<'a>,
 }
 
 impl<'a> ValueDecoder<'a> {
-    pub(crate) fn new(meta: RleDecoder<'a, u64>, raw: Decoder<'a>) -> ValueDecoder<'a> {
+    pub(crate) fn new(meta: RleDecoder<'a, u64>, raw: RawDecoder<'a>) -> ValueDecoder<'a> {
         ValueDecoder {
             meta,
             raw,

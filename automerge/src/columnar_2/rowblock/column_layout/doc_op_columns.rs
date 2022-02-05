@@ -1,13 +1,11 @@
 use std::{convert::TryFrom, ops::Range};
 
-use crate::decoding::{BooleanDecoder, RleDecoder};
-
 use super::{
     super::{
         column_range::{
             ActorRange, BooleanRange, DeltaIntRange, RawRange, RleIntRange, RleStringRange,
         },
-        encoding::decoders::{KeyDecoder, ObjDecoder, OpIdDecoder, OpListDecoder, ValueDecoder},
+        encoding::{BooleanDecoder, RleDecoder, KeyDecoder, ObjDecoder, OpIdDecoder, OpIdListDecoder, ValueDecoder},
         row_ops::DocOp,
     },
     column::{Column, GroupedColumn, SimpleColType},
@@ -45,7 +43,7 @@ impl DocOpColumns {
             ),
             insert: self.insert.decoder(data),
             value: ValueDecoder::new(self.val_meta.decoder(data), self.val_raw.decoder(data)),
-            succ: OpListDecoder::new(
+            succ: OpIdListDecoder::new(
                 self.succ_group.decoder(data),
                 self.succ_actor.decoder(data),
                 self.succ_ctr.decoder(data),
@@ -61,7 +59,7 @@ pub(crate) struct DocOpColumnIter<'a> {
     keys: KeyDecoder<'a>,
     insert: BooleanDecoder<'a>,
     value: ValueDecoder<'a>,
-    succ: OpListDecoder<'a>,
+    succ: OpIdListDecoder<'a>,
 }
 
 impl<'a> DocOpColumnIter<'a> {

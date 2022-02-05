@@ -3,12 +3,9 @@ use std::{
     ops::Range,
 };
 
-use crate::{
-    decoding::{BooleanDecoder, Decoder, DeltaDecoder, RleDecoder},
-    columnar_2::rowblock::{value::CellValue, column_layout::column::{Column, GroupedColumn, SimpleColType}}
-};
+use crate::columnar_2::rowblock::{value::CellValue, column_layout::column::{Column, GroupedColumn, SimpleColType}};
 
-use super::ValueDecoder;
+use super::{RawDecoder, RleDecoder, ValueDecoder, DeltaDecoder, BooleanDecoder};
 
 pub(crate) enum SimpleColDecoder<'a> {
     RleUint(RleDecoder<'a, u64>),
@@ -67,7 +64,7 @@ impl<'a> GenericColDecoder<'a> {
             }
             Column::Value { meta, value, .. } => Self::Simple(SimpleColDecoder::Value(ValueDecoder::new(
                 RleDecoder::from(Cow::Borrowed(&data[Range::from(meta)])),
-                Decoder::from(Cow::Borrowed(&data[Range::from(value)])),
+                RawDecoder::from(Cow::Borrowed(&data[Range::from(value)])),
             ))),
             Column::Group { num, values, .. } => {
                 let num_coder = RleDecoder::from(Cow::from(&data[Range::from(num)]));
@@ -79,7 +76,7 @@ impl<'a> GenericColDecoder<'a> {
                         }
                         GroupedColumn::Value { meta, value } => SimpleColDecoder::Value(ValueDecoder::new(
                             RleDecoder::from(Cow::Borrowed(&data[Range::from(meta)])),
-                            Decoder::from(Cow::Borrowed(&data[Range::from(value)])),
+                            RawDecoder::from(Cow::Borrowed(&data[Range::from(value)])),
                         )),
                     })
                     .collect();

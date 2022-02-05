@@ -3,8 +3,8 @@ use  smol_str::SmolStr;
 use crate::{
     types::{ElemId, OpId},
     columnar_2::rowblock::row_ops::Key,
-    decoding::{RleDecoder, DeltaDecoder},
 };
+use super::{RleDecoder, DeltaDecoder};
 
 
 pub(crate) struct KeyDecoder<'a> {

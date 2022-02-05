@@ -1,5 +1,9 @@
-use super::Sink;
-use crate::encoding::Encodable;
+use std::{
+    borrow::Cow,
+    fmt::Debug,
+};
+
+use super::{Encodable, Decodable, RawDecoder, Sink};
 
 pub(crate) struct RleEncoder<'a, T>
 where
@@ -124,7 +128,7 @@ where
     where
         V: Encodable,
     {
-        val.encode(&mut self.buf).unwrap();
+        val.encode(&mut self.buf);
     }
 }
 
@@ -154,5 +158,124 @@ impl<'a, T: Clone + PartialEq + Encodable> Sink for RleEncoder<'a, T> {
 impl<'a, T: Clone + PartialEq + Encodable> From<&'a mut [u8]> for RleEncoder<'a, T> {
     fn from(output: &'a mut [u8]) -> Self {
         Self::new(output) 
+    }
+}
+
+/// See discussion on [`RleEncoder`] for the format data is stored in.
+#[derive(Debug)]
+pub(crate) struct RleDecoder<'a, T> {
+    pub decoder: RawDecoder<'a>,
+    last_value: Option<T>,
+    count: isize,
+    literal: bool,
+}
+
+impl<'a, T> RleDecoder<'a, T> {
+    pub(crate) fn done(&self) -> bool {
+        self.decoder.done()
+    }
+}
+
+impl<'a, T> From<Cow<'a, [u8]>> for RleDecoder<'a, T> {
+    fn from(bytes: Cow<'a, [u8]>) -> Self {
+        RleDecoder {
+            decoder: RawDecoder::from(bytes),
+            last_value: None,
+            count: 0,
+            literal: false,
+        }
+    }
+}
+
+// this decoder needs to be able to send type T or 'null'
+// it is an endless iterator that will return all 'null's
+// once input is exhausted
+impl<'a, T> Iterator for RleDecoder<'a, T>
+where
+    T: Clone + Debug + Decodable,
+{
+    type Item = Option<T>;
+
+    fn next(&mut self) -> Option<Option<T>> {
+        while self.count == 0 {
+            if self.decoder.done() {
+                return Some(None);
+            }
+            match self.decoder.read::<i64>() {
+                Ok(count) if count > 0 => {
+                    // normal run
+                    self.count = count as isize;
+                    self.last_value = self.decoder.read().ok();
+                    self.literal = false;
+                }
+                Ok(count) if count < 0 => {
+                    // literal run
+                    self.count = count.abs() as isize;
+                    self.literal = true;
+                }
+                Ok(_) => {
+                    // null run
+                    // FIXME(jeffa5): handle usize > i64 here somehow
+                    self.count = self.decoder.read::<usize>().unwrap() as isize;
+                    self.last_value = None;
+                    self.literal = false;
+                }
+                Err(e) => {
+                    tracing::warn!(error=?e, "error during rle decoding");
+                    return None;
+                }
+            }
+        }
+        self.count -= 1;
+        if self.literal {
+            Some(self.decoder.read().ok())
+        } else {
+            Some(self.last_value.clone())
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::borrow::Cow;
+    use super::*;
+
+    #[test]
+    fn rle_int_round_trip() {
+        let vals = [1,1,2,2,3,2,3,1,3];
+        let mut buf = vec![0; vals.len() * 3];
+        let mut encoder: RleEncoder<'_, u64> = RleEncoder::new(&mut buf);
+        for val in vals {
+            encoder.append_value(val)
+        }
+        let total_slice_len = encoder.finish();
+        let mut decoder: RleDecoder<'_, u64> = RleDecoder::from(Cow::Borrowed(&buf[0..total_slice_len]));
+        let mut result = Vec::new();
+        while let Some(Some(val)) = decoder.next() {
+            result.push(val);
+        }
+        assert_eq!(result, vals);
+    }
+
+    #[test]
+    fn rle_int_insert() {
+        let vals = [1,1,2,2,3,2,3,1,3];
+        let mut buf = vec![0; vals.len() * 3];
+        let mut encoder: RleEncoder<'_, u64> = RleEncoder::new(&mut buf);
+        for i in 0..4 {
+            encoder.append_value(vals[i])
+        }
+        encoder.append_value(5);
+        for i in 4..vals.len() {
+            encoder.append_value(vals[i]);
+        }
+        let total_slice_len = encoder.finish();
+        let mut decoder: RleDecoder<'_, u64> = RleDecoder::from(Cow::Borrowed(&buf[0..total_slice_len]));
+        let mut result = Vec::new();
+        while let Some(Some(val)) = decoder.next() {
+            result.push(val);
+        }
+        let expected = [1,1,2,2,5,3,2,3,1,3];
+        assert_eq!(result, expected);
     }
 }

@@ -8,7 +8,7 @@ mod column_layout;
 use column_layout::{BadColumnLayout, ColumnLayout};
 mod column_range;
 mod encoding;
-use encoding::decoders::GenericColDecoder;
+use encoding::GenericColDecoder;
 mod row_ops;
 mod value;
 use value::CellValue;

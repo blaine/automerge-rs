@@ -2,14 +2,12 @@ use std::convert::TryInto;
 
 use crate::{
     columnar::Action,
-    columnar_2::rowblock::{encoding::{
-        encoders::Sink,
-        decoders::{
-            Source, InternedKeyDecoder, OpIdDecoder, OpListDecoder, ValueDecoder,
+    columnar_2::rowblock::{
+        encoding::{
+            InternedKeyDecoder, OpIdDecoder, OpIdListDecoder, ValueDecoder, BooleanDecoder, RleDecoder,
         },
+        column_range::{ActorRange, BooleanRange, DeltaIntRange, RawRange, RleIntRange},
     },
-    column_range::{ActorRange, BooleanRange, DeltaIntRange, RawRange, RleIntRange}},
-    decoding::{BooleanDecoder, RleDecoder},
     types::{ObjId, Op},
     ObjType, OpType,
 };
@@ -40,8 +38,9 @@ struct OpTreeColumns {
 }
 
 impl OpTreeColumns {
-    pub(crate) fn insert(&mut self, index: usize, op: Op, data: &[u8]) {
+    pub(crate) fn insert(self, index: usize, op: Op, data: &[u8]) -> Self {
         let mut new_data: Vec<u8> = Vec::with_capacity(data.len() + std::mem::size_of::<Op>());
+        unimplemented!()
 
         // read off index - 1 entries, insert into target slice
 
@@ -64,12 +63,12 @@ impl OpTreeColumns {
                 self.val_meta.decoder(data),
                 self.val_raw.decoder(data),
             ),
-            pred: OpListDecoder::new(
+            pred: OpIdListDecoder::new(
                 self.pred_group.decoder(data),
                 self.pred_actor.decoder(data),
                 self.pred_ctr.decoder(data),
             ),
-            succ: OpListDecoder::new(
+            succ: OpIdListDecoder::new(
                 self.succ_group.decoder(data),
                 self.succ_actor.decoder(data),
                 self.succ_ctr.decoder(data),
@@ -86,8 +85,8 @@ pub(crate) struct OpTreeColumnIter<'a> {
     keys: InternedKeyDecoder<'a>,
     insert: BooleanDecoder<'a>,
     value: ValueDecoder<'a>,
-    pred: OpListDecoder<'a>,
-    succ: OpListDecoder<'a>,
+    pred: OpIdListDecoder<'a>,
+    succ: OpIdListDecoder<'a>,
     change_idx: RleDecoder<'a, u64>,
 }
 
@@ -138,29 +137,29 @@ impl<'a> Iterator for OpTreeColumnIter<'a> {
     }
 }
 
-fn copy_with_insert<T, I: Source<Item=T>, S: Sink<Item=T>>(mut input: I, mut output: S, index: usize, value: Option<T>) -> usize {
-    for _ in 0..index {
-        let val = input.next();
-        output.append(val);
-    }
-    output.append(value);
-    while !input.done() {
-        let val = input.next();
-        output.append(val);
-    }
-    output.finish()
-}
+//fn copy_with_insert<T, I: Source<Item=T>, S: Sink<Item=T>>(mut input: I, mut output: S, index: usize, value: Option<T>) -> usize {
+    //for _ in 0..index {
+        //let val = input.next();
+        //output.append(val);
+    //}
+    //output.append(value);
+    //while !input.done() {
+        //let val = input.next();
+        //output.append(val);
+    //}
+    //output.finish()
+//}
 
-fn split_into<T, I: Source<Item=T>, S: Sink<Item=T>>(mut input: I, mut output_one: S, mut output_two: S, index: usize) -> (usize, usize) {
-    for _ in 0..index {
-        let val = input.next();
-        output_one.append(val);
-    }
-    let size_one = output_one.finish();
-    while !input.done() {
-        let val = input.next();
-        output_two.append(val);
-    }
-    let size_two = output_two.finish();
-    (size_one, size_two)
-}
+//fn split_into<T, I: Source<Item=T>, S: Sink<Item=T>>(mut input: I, mut output_one: S, mut output_two: S, index: usize) -> (usize, usize) {
+    //for _ in 0..index {
+        //let val = input.next();
+        //output_one.append(val);
+    //}
+    //let size_one = output_one.finish();
+    //while !input.done() {
+        //let val = input.next();
+        //output_two.append(val);
+    //}
+    //let size_two = output_two.finish();
+    //(size_one, size_two)
+//}
