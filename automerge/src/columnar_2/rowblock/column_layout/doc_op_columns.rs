@@ -91,7 +91,7 @@ impl<'a> Iterator for DocOpColumnIter<'a> {
             let key = self.keys.next().unwrap();
             let value = self.value.next();
             let succ = self.succ.next().unwrap();
-            let insert = self.insert.next().unwrap_or(false);
+            let insert = self.insert.next().unwrap().unwrap_or(false);
             Some(DocOp {
                 id,
                 value,

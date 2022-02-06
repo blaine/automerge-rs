@@ -10,7 +10,8 @@ pub(crate) enum SpliceError {
 
 impl RowBlock<ColumnLayout> {
 
-    /// Create a new block, replacing 0 or more of the rows in this block with a new values
+    /// Create a new block, replacing 0 or more of the rows in this block with a new values. The
+    /// semantics of this are more or less equivalent to `Vec::splice`.
     ///
     /// # Arguments
     /// 
@@ -27,14 +28,14 @@ impl RowBlock<ColumnLayout> {
     /// # Panics
     ///
     /// This function will panic if the indices of `replace` are not in the block
-    pub(crate) fn splice<R, F>(
+    pub(crate) fn splice<'a, R, F>(
         &self,
         replace: R,
         replace_with: F,
     ) -> Result<Self, SpliceError> 
     where
         R: RangeBounds<usize>,
-        F: Fn(usize, usize) -> Option<CellValue>
+        F: Fn(usize, usize) -> Option<&'a CellValue>
     {
         let mut new_data = Vec::with_capacity(self.data.len() * 2);
         let mut start = 0;

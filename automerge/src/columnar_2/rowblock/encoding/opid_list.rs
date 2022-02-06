@@ -1,6 +1,6 @@
 use crate::types::OpId;
 
-use super::{DeltaDecoder, DeltaEncoder, RleDecoder, RleEncoder, Sink};
+use super::{DeltaDecoder, DeltaEncoder, RleDecoder, RleEncoder};
 
 pub(crate) struct OpIdListDecoder<'a> {
     num: RleDecoder<'a, u64>,

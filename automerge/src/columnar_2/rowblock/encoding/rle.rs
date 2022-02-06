@@ -169,7 +169,7 @@ impl<'a, T: Clone + PartialEq + Encodable> From<&'a mut Vec<u8>> for RleEncoder<
 }
 
 /// See discussion on [`RleEncoder`] for the format data is stored in.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct RleDecoder<'a, T> {
     pub decoder: RawDecoder<'a>,
     last_value: Option<T>,
@@ -179,7 +179,7 @@ pub(crate) struct RleDecoder<'a, T> {
 
 impl<'a, T> RleDecoder<'a, T> {
     pub(crate) fn done(&self) -> bool {
-        self.decoder.done()
+        self.decoder.done() && self.count == 0
     }
 }
 
@@ -191,6 +191,12 @@ impl<'a, T> From<Cow<'a, [u8]>> for RleDecoder<'a, T> {
             count: 0,
             literal: false,
         }
+    }
+}
+
+impl<'a, T> From<&'a [u8]> for RleDecoder<'a, T> {
+    fn from(d: &'a [u8]) -> Self {
+        Cow::Borrowed(d).into()
     }
 }
 
@@ -210,6 +216,7 @@ where
             }
             match self.decoder.read::<i64>() {
                 Ok(count) if count > 0 => {
+                    println!("reading a normal run: {}", count);
                     // normal run
                     self.count = count as isize;
                     self.last_value = self.decoder.read().ok();
@@ -242,7 +249,7 @@ where
     }
 }
 
-impl<'a, T> Source for RleDecoder<'a, T>
+impl<'a, 'b, T> Source for &'a mut RleDecoder<'b, T>
 where
     T: Clone + Debug + Decodable,
 {

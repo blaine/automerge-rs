@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use super::{Encodable, RawDecoder, Source};
+use super::{Encodable, RawDecoder, Source, Sink};
 
 /// Encodes booleans by storing the count of the same value.
 ///
@@ -62,12 +62,6 @@ impl<'a> BooleanDecoder<'a> {
     }
 }
 
-impl<'a> From<Cow<'a, [u8]>> for RawDecoder<'a> {
-    fn from(bytes: Cow<'a, [u8]>) -> RawDecoder<'a> {
-        RawDecoder::new(bytes)
-    }
-}
-
 impl<'a> From<Cow<'a, [u8]>> for BooleanDecoder<'a> {
     fn from(bytes: Cow<'a, [u8]>) -> Self {
         BooleanDecoder {
@@ -78,26 +72,46 @@ impl<'a> From<Cow<'a, [u8]>> for BooleanDecoder<'a> {
     }
 }
 
+impl<'a> From<&'a [u8]> for BooleanDecoder<'a> {
+    fn from(d: &'a [u8]) -> Self {
+        Cow::Borrowed(d).into() 
+    }
+}
+
 // this is an endless iterator that returns false after input is exhausted
 impl<'a> Iterator for BooleanDecoder<'a> {
-    type Item = bool;
+    type Item = Option<bool>;
 
-    fn next(&mut self) -> Option<bool> {
+    fn next(&mut self) -> Option<Option<bool>> {
         while self.count == 0 {
             if self.decoder.done() && self.count == 0 {
-                return Some(false);
+                return Some(Some(false));
             }
             self.count = self.decoder.read().unwrap_or_default();
             self.last_value = !self.last_value;
         }
         self.count -= 1;
-        Some(self.last_value)
+        Some(Some(self.last_value))
     }
 }
 
-impl<'a> Source for BooleanDecoder<'a> {
+impl<'a, 'b> Source for &'b mut BooleanDecoder<'a> {
     fn done(&self) -> bool {
         BooleanDecoder::done(self)
     }
 }
 
+impl<'a> Sink for BooleanEncoder<'a> {
+    type Item = bool;
+
+    fn append(&mut self, item: Option<Self::Item>) {
+        match item {
+            Some(b) => BooleanEncoder::append(self, b),
+            None => BooleanEncoder::append(self, false),
+        }
+    }
+
+    fn finish(self) -> usize {
+        BooleanEncoder::finish(self)
+    }
+}

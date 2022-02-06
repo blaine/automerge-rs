@@ -1,6 +1,6 @@
 use std::{borrow::Cow, fmt::Debug, io::Write};
 
-use super::Decodable;
+use super::{Decodable, Encodable};
 
 #[derive(Clone, Debug)]
 pub(crate) struct RawDecoder<'a> {
@@ -58,6 +58,18 @@ impl<'a> RawDecoder<'a> {
     }
 }
 
+impl<'a> From<&'a [u8]> for RawDecoder<'a> {
+    fn from(d: &'a [u8]) -> Self {
+        Cow::Borrowed(d).into()
+    }
+}
+
+impl<'a> From<Cow<'a, [u8]>> for RawDecoder<'a> {
+    fn from(d: Cow<'a, [u8]>) -> Self {
+        RawDecoder::new(d)
+    }
+}
+
 
 pub(crate) struct RawEncoder<'a> {
     written: usize,
@@ -65,8 +77,10 @@ pub(crate) struct RawEncoder<'a> {
 }
 
 impl<'a> RawEncoder<'a> {
-    fn append(&mut self, value: &[u8]) {
-        self.written += self.output.write(value).unwrap();
+    pub(crate) fn append<I: Encodable>(&mut self, value: &I) -> usize {
+        let written = value.encode(&mut self.output);
+        self.written += written;
+        written
     }
 
     fn finish(self) -> usize {
@@ -79,3 +93,4 @@ impl<'a> From<&'a mut Vec<u8>> for RawEncoder<'a> {
         RawEncoder{ written: 0, output }
     }
 }
+

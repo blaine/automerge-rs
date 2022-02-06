@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use super::{RleEncoder, RleDecoder, Source};
+use super::{RleEncoder, RleDecoder, Source, Sink};
 
 /// Encodes integers as the change since the previous value.
 ///
@@ -79,9 +79,24 @@ impl<'a> Iterator for DeltaDecoder<'a> {
     }
 }
 
-impl<'a> Source for DeltaDecoder<'a> {
+impl<'a, 'b> Source for &'a mut DeltaDecoder<'b> {
     fn done(&self) -> bool {
         DeltaDecoder::done(self)
+    }
+}
+
+impl<'a> Sink for DeltaEncoder<'a> {
+    type Item = u64;
+
+    fn append(&mut self, item: Option<Self::Item>) {
+        match item {
+            Some(i) => self.append_value(i),
+            None => self.append_null(),
+        }
+    }
+
+    fn finish(self) -> usize {
+        DeltaEncoder::finish(self)
     }
 }
 

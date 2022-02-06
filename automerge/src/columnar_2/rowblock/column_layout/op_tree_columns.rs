@@ -128,7 +128,7 @@ impl<'a> Iterator for OpTreeColumnIter<'a> {
                 key: self.keys.next().unwrap(),
                 id: self.id.next().unwrap().into(),
                 action,
-                insert: self.insert.next().unwrap(),
+                insert: self.insert.next().unwrap().unwrap(),
                 pred: self.pred.next().unwrap(),
                 succ: self.succ.next().unwrap(),
                 change: self.change_idx.next().unwrap().unwrap() as usize,

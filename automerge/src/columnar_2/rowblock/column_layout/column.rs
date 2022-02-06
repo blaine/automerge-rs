@@ -1,7 +1,7 @@
 use std::ops::{Range, RangeBounds};
 
 use super::{
-    super::{encoding::SimpleColDecoder, CellValue, ColumnId, ColumnSpec},
+    super::{encoding::{RleDecoder, RawDecoder, ValueDecoder, SimpleColDecoder}, CellValue, ColumnId, ColumnSpec},
     ColumnSpliceError,
 };
 
@@ -29,7 +29,7 @@ impl Column {
         }
     }
 
-    pub(crate) fn splice<F>(
+    pub(crate) fn splice<'a, F>(
         &self,
         source: &[u8],
         output: &mut Vec<u8>,
@@ -38,7 +38,7 @@ impl Column {
         replace_with: F,
     ) -> Result<Self, ColumnSpliceError>
     where
-        F: Fn(usize) -> Option<CellValue>,
+        F: Fn(usize) -> Option<&'a CellValue>,
     {
         match self {
             Self::Single(s, t, range) => {
@@ -46,7 +46,21 @@ impl Column {
                 let end = decoder.splice(output, replace, replace_with)? + output_start;
                 Ok(Self::Single(*s, *t, (output_start..end).into()))
             }
-            Self::Value { .. } => unimplemented!(),
+            Self::Value { id, meta, value,} => {
+                let mut decoder = ValueDecoder{
+                    meta: RleDecoder::from(&source[Range::from(meta)]),
+                    raw: RawDecoder::from(&source[Range::from(value)]),
+                };
+                let replacements = |i| {
+                    match replace_with(i) {
+                        Some(CellValue::Value(p)) => Ok(Some(p)),
+                        None => Ok(None),
+                        Some(_) => Err(ColumnSpliceError::InvalidValueForRow(i)),
+                    }
+                };
+                let (new_meta, new_data) = decoder.splice(output, output_start, replace, replacements)?;
+                Ok(Self::Value{ id: *id, meta: new_meta.into(), value: new_data.into() })
+            },
             Self::Group { .. } => unimplemented!(),
         }
     }

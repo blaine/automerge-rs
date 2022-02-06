@@ -6,18 +6,16 @@ use std::io::Write;
 impl Encodable for SmolStr {
     fn encode(&self, buf: &mut Vec<u8>) -> usize {
         let bytes = self.as_bytes();
-        let head_len = bytes.len().encode(buf);
         buf.write_all(bytes).unwrap();
-        head_len + bytes.len() 
+        bytes.len() 
     }
 }
 
 impl Encodable for String {
     fn encode(&self, buf: &mut Vec<u8>) ->usize {
         let bytes = self.as_bytes();
-        let head_len = bytes.len().encode(buf);
         buf.write_all(bytes).unwrap();
-        head_len + bytes.len()
+        bytes.len()
     }
 }
 
@@ -77,3 +75,14 @@ impl Encodable for i32 {
     }
 }
 
+impl Encodable for [u8] {
+    fn encode(&self, out: &mut Vec<u8>) -> usize {
+        out.write(self).unwrap()
+    }
+}
+
+impl Encodable for Vec<u8> {
+    fn encode(&self, out: &mut Vec<u8>) -> usize {
+        Encodable::encode(&self[..], out)
+    }
+}

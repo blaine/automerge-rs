@@ -11,7 +11,7 @@ pub(crate) enum CellValue {
     List(Vec<Vec<CellValue>>),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum PrimVal {
     Null,
     Bool(bool),
