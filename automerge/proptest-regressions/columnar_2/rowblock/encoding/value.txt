@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 4aa9396b220c6b4cd77023b83daf43ab235f27b0440d138988867ec2cc996fe4 # shrinks to mut scenario = Scenario { values: [Float(1.40737784002467e17), Uint(7654095917355580529), Bool(false), Unknown { type_code: 13, data: [107, 52, 179, 165, 17, 43, 74, 203, 73, 199, 91, 15, 201, 142, 141, 116, 79, 191, 220, 198, 174, 247, 28, 0, 167, 192, 220, 177, 131, 244, 116, 251, 73, 0, 125, 50, 75, 36, 55, 103, 89, 152, 140, 164, 243, 164, 223, 42, 46, 173, 130, 179, 81, 17, 37, 24, 121, 189, 244, 56, 165, 159, 241, 3, 118, 167, 100, 123, 16, 42, 212, 135, 106, 227, 113, 236, 199, 134, 241, 13, 69, 155] }], replace_range: 0..1, replacements: [] }
+cc 61b1f5cdb9fb05e74623e096046f34c8576af2d54cc3cbf7be5d8a1b6bf59680 # shrinks to values = [Bool(false), Bool(false)]

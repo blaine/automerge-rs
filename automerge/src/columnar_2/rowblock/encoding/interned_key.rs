@@ -30,10 +30,10 @@ impl<'a> Iterator for InternedKeyDecoder<'a> {
     type Item = Key;
 
     fn next(&mut self) -> Option<Key> {
-        match (self.actor.next()?, self.ctr.next()?, self.str_idx.next()?) {
-            (None, None, Some(key_idx)) => Some(Key::Map(key_idx as usize)),
+        match (self.actor.next(), self.ctr.next(), self.str_idx.next()) {
+            (None, None, Some(Some(key_idx))) => Some(Key::Map(key_idx as usize)),
             (None, Some(0), None) => Some(Key::Seq(ElemId(OpId(0, 0)))),
-            (Some(actor), Some(ctr), None) => Some(Key::Seq(OpId(actor, ctr as usize).into())),
+            (Some(Some(actor)), Some(ctr), None) => Some(Key::Seq(OpId(actor, ctr as usize).into())),
             // TODO: This should be fallible and throw here
             _ => None,
         }

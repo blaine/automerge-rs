@@ -63,18 +63,18 @@ impl<'a> From<Cow<'a, [u8]>> for DeltaDecoder<'a> {
 }
 
 impl<'a> Iterator for DeltaDecoder<'a> {
-    type Item = Option<u64>;
+    type Item = u64;
 
-    fn next(&mut self) -> Option<Option<u64>> {
+    fn next(&mut self) -> Option<u64> {
         if let Some(delta) = self.rle.next()? {
             if delta < 0 {
                 self.absolute_val -= delta.abs() as u64;
             } else {
                 self.absolute_val += delta as u64;
             }
-            Some(Some(self.absolute_val))
+            Some(self.absolute_val)
         } else {
-            Some(None)
+            None
         }
     }
 }

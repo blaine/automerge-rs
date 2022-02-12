@@ -31,10 +31,10 @@ impl<'a> Iterator for KeyDecoder<'a> {
     type Item = Key;
 
     fn next(&mut self) -> Option<Key> {
-        match (self.actor.next()?, self.ctr.next()?, self.str.next()?) {
-            (None, None, Some(string)) => Some(Key::Prop(string)),
+        match (self.actor.next(), self.ctr.next(), self.str.next()) {
+            (None, None, Some(Some(string))) => Some(Key::Prop(string)),
             (None, Some(0), None) => Some(Key::Elem(ElemId(OpId(0, 0)))),
-            (Some(actor), Some(ctr), None) => {
+            (Some(Some(actor)), Some(ctr), None) => {
                 Some(Key::Elem(ElemId(OpId(actor, ctr as usize))))
             }
             // TODO: This should be fallible and throw here

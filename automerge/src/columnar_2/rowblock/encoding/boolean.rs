@@ -80,18 +80,18 @@ impl<'a> From<&'a [u8]> for BooleanDecoder<'a> {
 
 // this is an endless iterator that returns false after input is exhausted
 impl<'a> Iterator for BooleanDecoder<'a> {
-    type Item = Option<bool>;
+    type Item = bool;
 
-    fn next(&mut self) -> Option<Option<bool>> {
+    fn next(&mut self) -> Option<bool> {
         while self.count == 0 {
             if self.decoder.done() && self.count == 0 {
-                return Some(Some(false));
+                return None;
             }
             self.count = self.decoder.read().unwrap_or_default();
             self.last_value = !self.last_value;
         }
         self.count -= 1;
-        Some(Some(self.last_value))
+        Some(self.last_value)
     }
 }
 

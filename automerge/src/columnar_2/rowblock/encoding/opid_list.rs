@@ -30,7 +30,7 @@ impl<'a> Iterator for OpIdListDecoder<'a> {
         let mut p = Vec::with_capacity(num as usize);
         for _ in 0..num {
             let actor = self.actor.next()??;
-            let ctr = self.ctr.next()??;
+            let ctr = self.ctr.next()?;
             p.push(OpId(actor, ctr as usize));
         }
         Some(p)

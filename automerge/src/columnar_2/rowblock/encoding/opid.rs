@@ -25,8 +25,8 @@ impl<'a> Iterator for OpIdDecoder<'a> {
     type Item = OpId;
 
     fn next(&mut self) -> Option<OpId> {
-        match (self.actor.next()?, self.ctr.next()?) {
-            (Some(a), Some(c)) => Some(OpId(a, c as usize)),
+        match (self.actor.next(), self.ctr.next()) {
+            (Some(Some(a)), Some(c)) => Some(OpId(a, c as usize)),
             // TODO: This should be fallible and throw here
             _ => None,
         }

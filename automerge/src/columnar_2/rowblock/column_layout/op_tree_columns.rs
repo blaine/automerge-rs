@@ -128,7 +128,7 @@ impl<'a> Iterator for OpTreeColumnIter<'a> {
                 key: self.keys.next().unwrap(),
                 id: self.id.next().unwrap().into(),
                 action,
-                insert: self.insert.next().unwrap().unwrap(),
+                insert: self.insert.next().unwrap(),
                 pred: self.pred.next().unwrap(),
                 succ: self.succ.next().unwrap(),
                 change: self.change_idx.next().unwrap().unwrap() as usize,
@@ -136,30 +136,3 @@ impl<'a> Iterator for OpTreeColumnIter<'a> {
         }
     }
 }
-
-//fn copy_with_insert<T, I: Source<Item=T>, S: Sink<Item=T>>(mut input: I, mut output: S, index: usize, value: Option<T>) -> usize {
-    //for _ in 0..index {
-        //let val = input.next();
-        //output.append(val);
-    //}
-    //output.append(value);
-    //while !input.done() {
-        //let val = input.next();
-        //output.append(val);
-    //}
-    //output.finish()
-//}
-
-//fn split_into<T, I: Source<Item=T>, S: Sink<Item=T>>(mut input: I, mut output_one: S, mut output_two: S, index: usize) -> (usize, usize) {
-    //for _ in 0..index {
-        //let val = input.next();
-        //output_one.append(val);
-    //}
-    //let size_one = output_one.finish();
-    //while !input.done() {
-        //let val = input.next();
-        //output_two.append(val);
-    //}
-    //let size_two = output_two.finish();
-    //(size_one, size_two)
-//}
