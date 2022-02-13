@@ -2,13 +2,14 @@ use std::{convert::TryFrom, ops::Range};
 
 use super::{
     super::{
+        super::column_specification::ColumnType,
         column_range::{
             ActorRange, BooleanRange, DeltaIntRange, RawRange, RleIntRange, RleStringRange,
         },
         encoding::{BooleanDecoder, RleDecoder, KeyDecoder, ObjDecoder, OpIdDecoder, OpIdListDecoder, ValueDecoder},
         row_ops::DocOp,
     },
-    column::{Column, GroupedColumn, SimpleColType},
+    column::{Column, ColumnRanges, GroupColRange},
     ColumnLayout,
 };
 
@@ -79,7 +80,7 @@ impl<'a> DocOpColumnIter<'a> {
 }
 
 impl<'a> Iterator for DocOpColumnIter<'a> {
-    type Item = DocOp;
+    type Item = DocOp<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.done() {
@@ -135,35 +136,40 @@ impl TryFrom<ColumnLayout> for DocOpColumns {
 
         for (index, col) in columns.into_iter().enumerate() {
             match index {
-                0 => assert_simple_col(index, col, SimpleColType::Actor, &mut obj_actor)?,
-                1 => assert_simple_col(index, col, SimpleColType::Integer, &mut obj_ctr)?,
-                2 => assert_simple_col(index, col, SimpleColType::Actor, &mut key_actor)?,
-                3 => assert_simple_col(index, col, SimpleColType::DeltaInteger, &mut key_ctr)?,
-                4 => assert_simple_col(index, col, SimpleColType::String, &mut key_str)?,
-                5 => assert_simple_col(index, col, SimpleColType::Actor, &mut id_actor)?,
-                6 => assert_simple_col(index, col, SimpleColType::DeltaInteger, &mut id_ctr)?,
-                7 => assert_simple_col(index, col, SimpleColType::Boolean, &mut insert)?,
-                8 => assert_simple_col(index, col, SimpleColType::Integer, &mut action)?,
-                9 => match col {
-                    Column::Single(..) => return Err(Error::MismatchingColumn { index }),
-                    Column::Value { meta, value, .. } => {
-                        val_meta = Some(meta.into());
-                        val_raw = Some(value.into());
-                    }
-                    Column::Group { .. } => return Err(Error::MismatchingColumn { index }),
-                },
-                10 => match col {
-                    Column::Single(..) => return Err(Error::MismatchingColumn { index }),
-                    Column::Value { .. } => return Err(Error::MismatchingColumn { index }),
-                    Column::Group { num, values, .. } => match &values[..] {
-                        &[GroupedColumn::Single(_, SimpleColType::Actor, actor_range), GroupedColumn::Single(_, SimpleColType::DeltaInteger, ctr_range)] =>
-                        {
-                            succ_group = Some(num.into());
-                            succ_actor = Some(actor_range.into());
-                            succ_ctr = Some(ctr_range.into());
-                        }
-                        _ => return Err(Error::MismatchingColumn { index }),
+                0 => assert_col_type(index, col, ColumnType::Actor, &mut obj_actor)?,
+                1 => assert_col_type(index, col, ColumnType::Integer, &mut obj_ctr)?,
+                2 => assert_col_type(index, col, ColumnType::Actor, &mut key_actor)?,
+                3 => assert_col_type(index, col, ColumnType::DeltaInteger, &mut key_ctr)?,
+                4 => assert_col_type(index, col, ColumnType::String, &mut key_str)?,
+                5 => assert_col_type(index, col, ColumnType::Actor, &mut id_actor)?,
+                6 => assert_col_type(index, col, ColumnType::DeltaInteger, &mut id_ctr)?,
+                7 => assert_col_type(index, col, ColumnType::Boolean, &mut insert)?,
+                8 => assert_col_type(index, col, ColumnType::Integer, &mut action)?,
+                9 => match col.ranges() {
+                    ColumnRanges::Value{meta, val} => {
+                        val_meta = Some(meta);
+                        val_raw = Some(val);
                     },
+                    _ => return Err(Error::MismatchingColumn{ index }),
+                },
+                10 => match col.ranges() {
+                    ColumnRanges::Group{num, mut cols} => {
+                        let first = cols.next();
+                        let second = cols.next();
+                        match (first, second) {
+                            (Some(GroupColRange::Single(actor_range)), Some(GroupColRange::Single(ctr_range))) =>
+                            {
+                                succ_group = Some(num.into());
+                                succ_actor = Some(actor_range.into());
+                                succ_ctr = Some(ctr_range.into());
+                            },
+                            _ => return Err(Error::MismatchingColumn{ index }),
+                        };
+                        if let Some(_) = cols.next() {
+                            return Err(Error::MismatchingColumn{ index });
+                        }
+                    },
+                    _ => return Err(Error::MismatchingColumn{ index }),
                 },
                 _ => {
                     other.append(col);
@@ -190,17 +196,21 @@ impl TryFrom<ColumnLayout> for DocOpColumns {
     }
 }
 
-fn assert_simple_col(
+fn assert_col_type(
     index: usize,
     col: Column,
-    typ: SimpleColType,
+    typ: ColumnType,
     target: &mut Option<Range<usize>>,
 ) -> Result<(), Error> {
-    match col {
-        Column::Single(_, this_typ, range) if this_typ == typ => {
-            *target = Some(range.into());
-            Ok(())
+    if col.col_type() == typ {
+        match col.ranges() {
+            ColumnRanges::Single(range) => {
+                *target = Some(range);
+                Ok(())
+            },
+            _ => return Err(Error::MismatchingColumn{ index }),
         }
-        _ => Err(Error::MismatchingColumn { index }),
+    } else {
+        Err(Error::MismatchingColumn { index })
     }
 }

@@ -1,4 +1,6 @@
 mod raw;
+use std::borrow::Borrow;
+
 pub(crate) use raw::{RawEncoder, RawDecoder};
 mod rle;
 pub(crate) use rle::{RleEncoder, RleDecoder};
@@ -8,12 +10,12 @@ mod delta;
 pub(crate) use delta::{DeltaDecoder, DeltaEncoder};
 mod value;
 pub(crate) use value::ValueDecoder;
-mod generic;
+pub(crate) mod generic;
 pub(crate) use generic::{GenericColDecoder, SimpleColDecoder};
 mod opid;
 pub(crate) use opid::OpIdDecoder;
 mod opid_list;
-pub(crate) use opid_list::{OpIdListDecoder, OpIdListEncoder};
+pub(crate) use opid_list::OpIdListDecoder;
 mod obj_id;
 pub(crate) use obj_id::ObjDecoder;
 mod key;
@@ -39,7 +41,7 @@ mod decodable_impls;
 pub(crate) trait Sink {
     type Item;
 
-    fn append(&mut self, item: Option<Self::Item>);
+    fn append<I: Borrow<Self::Item>>(&mut self, item: Option<I>);
 
     fn finish(self) -> usize;
 }

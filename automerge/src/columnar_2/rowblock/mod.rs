@@ -41,7 +41,7 @@ impl RowBlock<ColumnLayout> {
 }
 
 impl<'a> IntoIterator for &'a RowBlock<ColumnLayout> {
-    type Item = Vec<(usize, Option<CellValue>)>;
+    type Item = Vec<(usize, Option<CellValue<'a>>)>;
     type IntoIter = RowBlockIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -49,7 +49,7 @@ impl<'a> IntoIterator for &'a RowBlock<ColumnLayout> {
             decoders: self
                 .columns
                 .iter()
-                .map(|c| (c.id(), GenericColDecoder::from_col(c, &self.data)))
+                .map(|c| (c.id(), c.decoder(&self.data)))
                 .collect(),
         }
     }
@@ -60,7 +60,7 @@ pub(crate) struct RowBlockIter<'a> {
 }
 
 impl<'a> Iterator for RowBlockIter<'a> {
-    type Item = Vec<(usize, Option<CellValue>)>;
+    type Item = Vec<(usize, Option<CellValue<'a>>)>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.decoders.iter().all(|(_, d)| d.done()) {
@@ -76,7 +76,7 @@ impl<'a> Iterator for RowBlockIter<'a> {
 }
 
 impl<'a> IntoIterator for &'a RowBlock<DocOpColumns> {
-    type Item = row_ops::DocOp;
+    type Item = row_ops::DocOp<'a>;
     type IntoIter = column_layout::doc_op_columns::DocOpColumnIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {

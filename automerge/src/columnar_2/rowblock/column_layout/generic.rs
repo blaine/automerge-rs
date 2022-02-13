@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use crate::columnar_2::column_specification::{ColumnId, ColumnSpec, ColumnType};
-use super::column::{Column, GroupedColumn, SimpleColType};
+use super::column::{ColumnBuilder, AwaitingRawColumnValueBuilder, GroupBuilder, GroupAwaitingValue, Column, EmptyGroup};
 
 pub(crate) struct ColumnLayout(Vec<Column>);
 
@@ -63,6 +63,12 @@ pub(crate) enum BadColumnLayout {
     DataOutOfRange,
 }
 
+impl From<EmptyGroup> for BadColumnLayout {
+    fn from(_: EmptyGroup) -> Self {
+        Self::EmptyGroup
+    }
+}
+
 struct ColumnLayoutParser {
     columns: Vec<Column>,
     last_spec: Option<ColumnSpec>,
@@ -72,14 +78,16 @@ struct ColumnLayoutParser {
 
 enum LayoutParserState {
     Ready,
-    InValue(ColumnId, Range<usize>),
-    InGroup(ColumnId, Range<usize>, Vec<GroupedColumn>, GroupParseState),
+    InValue(AwaitingRawColumnValueBuilder),
+    InGroup(ColumnId, GroupParseState),
 }
 
+#[derive(Debug)]
 enum GroupParseState {
-    Ready,
-    InValue(Range<usize>),
+    Ready(GroupBuilder),
+    InValue(GroupAwaitingValue),
 }
+
 
 impl ColumnLayoutParser {
     fn new(data_size: usize, size_hint: Option<usize>) -> Self {
@@ -94,35 +102,20 @@ impl ColumnLayoutParser {
     fn build(mut self) -> Result<ColumnLayout, BadColumnLayout> {
         match self.state {
             LayoutParserState::Ready => Ok(ColumnLayout(self.columns)),
-            LayoutParserState::InValue(id, meta_range) => {
-                self.columns.push(Column::Value {
-                    id,
-                    meta: meta_range.into(),
-                    value: (0..0).into(),
-                });
+            LayoutParserState::InValue(mut builder) => {
+                self.columns.push(builder.build(0..0));
                 Ok(ColumnLayout(self.columns))
             }
-            LayoutParserState::InGroup(id, range, mut grouped, groupstate) => {
-                if grouped.is_empty() {
-                    Err(BadColumnLayout::EmptyGroup)
-                } else {
-                    match groupstate {
-                        GroupParseState::InValue(meta) => {
-                            grouped.push(GroupedColumn::Value {
-                                meta: meta.into(),
-                                value: (0..0).into(),
-                            });
-                        }
-                        GroupParseState::Ready => {
-                            self.columns.push(Column::Group {
-                                id,
-                                num: range.into(),
-                                values: grouped,
-                            });
-                        }
-                    };
-                    Ok(ColumnLayout(self.columns))
-                }
+            LayoutParserState::InGroup(_, groupstate) => {
+                match groupstate {
+                    GroupParseState::InValue(mut builder) => {
+                        self.columns.push(builder.finish_empty().finish()?);
+                    }
+                    GroupParseState::Ready(mut builder) => {
+                        self.columns.push(builder.finish()?);
+                    }
+                };
+                Ok(ColumnLayout(self.columns))
             }
         }
     }
@@ -146,148 +139,101 @@ impl ColumnLayoutParser {
                 ColumnType::Group => {
                     self.state = LayoutParserState::InGroup(
                         column.id(),
-                        range,
-                        Vec::new(),
-                        GroupParseState::Ready,
+                        GroupParseState::Ready(ColumnBuilder::start_group(column.id(), range)),
                     );
                     Ok(())
                 }
                 ColumnType::ValueMetadata => {
-                    self.state = LayoutParserState::InValue(column.id(), range);
+                    self.state = LayoutParserState::InValue(ColumnBuilder::start_value(column.id(), range));
                     Ok(())
                 }
                 ColumnType::Value => Err(BadColumnLayout::LoneRawValueColumn),
                 ColumnType::Actor => {
                     self.columns
-                        .push(Column::Single(column, SimpleColType::Actor, range.into()));
+                        .push(ColumnBuilder::build_actor(column, range));
                     Ok(())
                 }
                 ColumnType::String => {
                     self.columns
-                        .push(Column::Single(column, SimpleColType::String, range.into()));
+                        .push(ColumnBuilder::build_string(column, range));
                     Ok(())
                 }
                 ColumnType::Integer => {
                     self.columns
-                        .push(Column::Single(column, SimpleColType::Integer, range.into()));
+                        .push(ColumnBuilder::build_integer(column, range));
                     Ok(())
                 }
                 ColumnType::DeltaInteger => {
-                    self.columns.push(Column::Single(
-                        column,
-                        SimpleColType::DeltaInteger,
-                        range.into(),
-                    ));
+                    self.columns
+                        .push(ColumnBuilder::build_delta_integer(column, range));
                     Ok(())
                 }
                 ColumnType::Boolean => {
                     self.columns
-                        .push(Column::Single(column, SimpleColType::Boolean, range.into()));
+                        .push(ColumnBuilder::build_boolean(column, range));
                     Ok(())
                 }
             },
-            LayoutParserState::InValue(id, meta_range) => match column.col_type() {
+            LayoutParserState::InValue(builder) => match column.col_type() {
                 ColumnType::Value => {
-                    if *id != column.id() {
+                    if builder.id() != column.id() {
                         return Err(BadColumnLayout::MismatchingValueMetadataId);
                     }
-                    self.columns.push(Column::Value {
-                        id: *id,
-                        value: range.into(),
-                        meta: meta_range.into(),
-                    });
+                    self.columns.push(builder.build(range));
                     self.state = LayoutParserState::Ready;
                     Ok(())
                 }
                 _ => {
-                    self.columns.push(Column::Value {
-                        id: *id,
-                        value: (0..0).into(),
-                        meta: meta_range.into(),
-                    });
+                    self.columns.push(builder.build(0..0));
                     self.state = LayoutParserState::Ready;
                     self.add_column(column, range)
                 }
             },
-            LayoutParserState::InGroup(id, num_range, grouped_cols, group_state) => {
+            LayoutParserState::InGroup(id, group_state) => {
                 if *id != column.id() {
-                    if grouped_cols.is_empty() {
-                        Err(BadColumnLayout::EmptyGroup)
-                    } else {
-                        let grouped_cols = std::mem::take(grouped_cols);
-                        self.columns.push(Column::Group {
-                            id: *id,
-                            num: num_range.into(),
-                            values: grouped_cols,
-                        });
-                        std::mem::swap(&mut self.state, &mut LayoutParserState::Ready);
-                        self.add_column(column, range)
-                    }
+                    match group_state {
+                        GroupParseState::Ready(b) => self.columns.push(b.finish()?),
+                        GroupParseState::InValue(b) => self.columns.push(b.finish_empty().finish()?),
+                    };
+                    std::mem::swap(&mut self.state, &mut LayoutParserState::Ready);
+                    self.add_column(column, range)
                 } else {
                     match group_state {
-                        GroupParseState::Ready => match column.col_type() {
+                        GroupParseState::Ready(builder) => match column.col_type() {
                             ColumnType::Group => Err(BadColumnLayout::NestedGroup),
                             ColumnType::Value => Err(BadColumnLayout::LoneRawValueColumn),
                             ColumnType::ValueMetadata => {
-                                *group_state = GroupParseState::InValue(range);
+                                *group_state = GroupParseState::InValue(builder.start_value(column, range));
                                 Ok(())
                             }
                             ColumnType::Actor => {
-                                grouped_cols.push(GroupedColumn::Single(
-                                    column.id(),
-                                    SimpleColType::Actor,
-                                    range.into(),
-                                ));
+                                builder.add_actor(column, range);
                                 Ok(())
                             }
                             ColumnType::Boolean => {
-                                grouped_cols.push(GroupedColumn::Single(
-                                    column.id(),
-                                    SimpleColType::Boolean,
-                                    range.into(),
-                                ));
+                                builder.add_boolean(column, range);
                                 Ok(())
                             }
                             ColumnType::DeltaInteger => {
-                                grouped_cols.push(GroupedColumn::Single(
-                                    column.id(),
-                                    SimpleColType::DeltaInteger,
-                                    range.into(),
-                                ));
+                                builder.add_delta_integer(column, range);
                                 Ok(())
                             }
                             ColumnType::Integer => {
-                                grouped_cols.push(GroupedColumn::Single(
-                                    column.id(),
-                                    SimpleColType::Integer,
-                                    range.into(),
-                                ));
+                                builder.add_integer(column, range);
                                 Ok(())
                             }
                             ColumnType::String => {
-                                grouped_cols.push(GroupedColumn::Single(
-                                    column.id(),
-                                    SimpleColType::String,
-                                    range.into(),
-                                ));
+                                builder.add_string(column, range);
                                 Ok(())
                             }
                         },
-                        GroupParseState::InValue(meta_range) => match column.col_type() {
+                        GroupParseState::InValue(builder) => match column.col_type() {
                             ColumnType::Value => {
-                                grouped_cols.push(GroupedColumn::Value {
-                                    meta: meta_range.into(),
-                                    value: range.into(),
-                                });
-                                *group_state = GroupParseState::Ready;
+                                *group_state = GroupParseState::Ready(builder.finish_value(range));
                                 Ok(())
                             }
                             _ => {
-                                grouped_cols.push(GroupedColumn::Value {
-                                    meta: meta_range.into(),
-                                    value: (0..0).into(),
-                                });
-                                *group_state = GroupParseState::Ready;
+                                *group_state = GroupParseState::Ready(builder.finish_empty());
                                 self.add_column(column, range)
                             }
                         },
@@ -308,34 +254,23 @@ impl ColumnLayoutParser {
             } else {
                 Ok(())
             },
-            LayoutParserState::InValue(_, r) => {
-                if r.end != next_range.start {
+            LayoutParserState::InValue(builder) => {
+                if builder.meta_range().end != next_range.start {
                     Err(BadColumnLayout::NonContiguousColumns)
                 } else {
                     Ok(())
                 }
             },
-            LayoutParserState::InGroup(_, r, cols, group_state) => {
-                match group_state {
-                    GroupParseState::InValue(r) => if r.end != next_range.start {
-                        Err(BadColumnLayout::NonContiguousColumns)
-                    } else {
-                        Ok(())
-                    },
-                    GroupParseState::Ready => {
-                        match cols.last() {
-                            Some(c) => if c.range().end != next_range.start {
-                                Err(BadColumnLayout::NonContiguousColumns)
-                            } else {
-                                Ok(())
-                            },
-                            None => if r.end != next_range.start {
-                                return Err(BadColumnLayout::NonContiguousColumns)
-                            } else {
-                                Ok(())
-                            }
-                        }
-                    }
+            LayoutParserState::InGroup(_, group_state) => {
+                let end = match group_state {
+                    GroupParseState::InValue(b) => b.range().end,
+                    GroupParseState::Ready(b) => b.range().end,
+                };
+                if end != next_range.start {
+                    println!("Group state: {:?}", group_state);
+                    Err(BadColumnLayout::NonContiguousColumns)
+                } else {
+                    Ok(())
                 }
             }
         }

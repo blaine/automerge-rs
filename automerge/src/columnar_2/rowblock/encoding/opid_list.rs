@@ -54,11 +54,11 @@ impl<'a> OpIdListEncoder<'a> {
 
     pub(crate) fn append(&mut self, opids: Option<&[OpId]>) {
         match opids {
-            None | Some(&[]) => self.num.append_value(0),
+            None | Some(&[]) => self.num.append_value(&0),
             Some(opids) => {
-                self.num.append_value(opids.len() as u64);
+                self.num.append_value(&(opids.len() as u64));
                 for opid in opids {
-                    self.actor.append_value(opid.actor() as u64);
+                    self.actor.append_value(&(opid.actor() as u64));
                     self.ctr.append_value(opid.counter() as u64);
                 }
             }

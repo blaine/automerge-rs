@@ -1,5 +1,7 @@
 use super::Encodable;
 
+use std::borrow::Cow;
+
 use smol_str::SmolStr;
 use std::io::Write;
 
@@ -8,6 +10,14 @@ impl Encodable for SmolStr {
         let bytes = self.as_bytes();
         buf.write_all(bytes).unwrap();
         bytes.len() 
+    }
+}
+
+impl<'a> Encodable for Cow<'a, SmolStr> {
+    fn encode(&self, buf: &mut Vec<u8>) -> usize {
+        let bytes = self.as_bytes();
+        buf.write_all(bytes).unwrap();
+        bytes.len()
     }
 }
 
@@ -25,6 +35,16 @@ impl Encodable for Option<String> {
             s.encode(buf)
         } else {
             0.encode(buf)
+        }
+    }
+}
+
+impl<'a> Encodable for Option<Cow<'a, SmolStr>> {
+    fn encode(&self, out: &mut Vec<u8>) -> usize {
+        if let Some(s) = self {
+            SmolStr::encode(s, out)
+        } else {
+            0.encode(out)
         }
     }
 }

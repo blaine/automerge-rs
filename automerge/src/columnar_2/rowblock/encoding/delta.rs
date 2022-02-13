@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::borrow::{Cow, Borrow};
 
 use super::{RleEncoder, RleDecoder, Source, Sink};
 
@@ -22,7 +22,7 @@ impl<'a> DeltaEncoder<'a> {
 
     pub fn append_value(&mut self, value: u64) {
         self.rle
-            .append_value(value as i64 - self.absolute_value as i64);
+            .append_value(&(value as i64 - self.absolute_value as i64));
         self.absolute_value = value;
     }
 
@@ -88,9 +88,9 @@ impl<'a, 'b> Source for &'a mut DeltaDecoder<'b> {
 impl<'a> Sink for DeltaEncoder<'a> {
     type Item = u64;
 
-    fn append(&mut self, item: Option<Self::Item>) {
+    fn append<I: Borrow<Self::Item>>(&mut self, item: Option<I>) {
         match item {
-            Some(i) => self.append_value(i),
+            Some(i) => self.append_value(*i.borrow()),
             None => self.append_null(),
         }
     }

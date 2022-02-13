@@ -1,5 +1,5 @@
 use std::{
-    borrow::Cow,
+    borrow::{Cow, Borrow},
     fmt::Debug,
 };
 
@@ -88,43 +88,43 @@ where
         }
     }
 
-    pub fn append_value(&mut self, value: T) {
+    pub fn append_value(&mut self, value: &T) {
         self.state = match self.take_state() {
-            RleState::Empty => RleState::LoneVal(value),
+            RleState::Empty => RleState::LoneVal(value.clone()),
             RleState::LoneVal(other) => {
-                if other == value {
-                    RleState::Run(value, 2)
+                if &other == value {
+                    RleState::Run(value.clone(), 2)
                 } else {
                     let mut v = Vec::with_capacity(2);
                     v.push(other);
-                    RleState::LiteralRun(value, v)
+                    RleState::LiteralRun(value.clone(), v)
                 }
             }
             RleState::Run(other, len) => {
-                if other == value {
+                if &other == value {
                     RleState::Run(other, len + 1)
                 } else {
                     self.flush_run(&other, len);
-                    RleState::LoneVal(value)
+                    RleState::LoneVal(value.clone())
                 }
             }
             RleState::LiteralRun(last, mut run) => {
-                if last == value {
+                if &last == value {
                     self.flush_lit_run(run);
-                    RleState::Run(value, 2)
+                    RleState::Run(value.clone(), 2)
                 } else {
                     run.push(last);
-                    RleState::LiteralRun(value, run)
+                    RleState::LiteralRun(value.clone(), run)
                 }
             }
             RleState::NullRun(size) => {
                 self.flush_null_run(size);
-                RleState::LoneVal(value)
+                RleState::LoneVal(value.clone())
             }
         }
     }
 
-    pub fn append(&mut self, value: Option<T>) {
+    pub fn append(&mut self, value: Option<&T>) {
         match value {
             Some(t) => self.append_value(t),
             None => self.append_null(),
@@ -150,9 +150,9 @@ enum RleState<T> {
 impl<'a, T: Clone + PartialEq + Encodable> Sink for RleEncoder<'a, T> {
     type Item  = T;
 
-    fn append(&mut self, item: Option<Self::Item>) {
+    fn append<I: Borrow<Self::Item>>(&mut self, item: Option<I>) {
         match item {
-            Some(v) => self.append_value(v),
+            Some(v) => self.append_value(v.borrow()),
             None => self.append_null(),
         }
     }
@@ -212,11 +212,10 @@ where
     fn next(&mut self) -> Option<Option<T>> {
         while self.count == 0 {
             if self.decoder.done() {
-                return Some(None);
+                return None;
             }
             match self.decoder.read::<i64>() {
                 Ok(count) if count > 0 => {
-                    println!("reading a normal run: {}", count);
                     // normal run
                     self.count = count as isize;
                     self.last_value = self.decoder.read().ok();
@@ -266,10 +265,10 @@ mod tests {
     #[test]
     fn rle_int_round_trip() {
         let vals = [1,1,2,2,3,2,3,1,3];
-        let mut buf = vec![0; vals.len() * 3];
+        let mut buf = Vec::with_capacity(vals.len() * 3);
         let mut encoder: RleEncoder<'_, u64> = RleEncoder::new(&mut buf);
         for val in vals {
-            encoder.append_value(val)
+            encoder.append_value(&val)
         }
         let total_slice_len = encoder.finish();
         let mut decoder: RleDecoder<'_, u64> = RleDecoder::from(Cow::Borrowed(&buf[0..total_slice_len]));
@@ -283,14 +282,14 @@ mod tests {
     #[test]
     fn rle_int_insert() {
         let vals = [1,1,2,2,3,2,3,1,3];
-        let mut buf = vec![0; vals.len() * 3];
+        let mut buf = Vec::with_capacity(vals.len() * 3);
         let mut encoder: RleEncoder<'_, u64> = RleEncoder::new(&mut buf);
         for i in 0..4 {
-            encoder.append_value(vals[i])
+            encoder.append_value(&vals[i])
         }
-        encoder.append_value(5);
+        encoder.append_value(&5);
         for i in 4..vals.len() {
-            encoder.append_value(vals[i]);
+            encoder.append_value(&vals[i]);
         }
         let total_slice_len = encoder.finish();
         let mut decoder: RleDecoder<'_, u64> = RleDecoder::from(Cow::Borrowed(&buf[0..total_slice_len]));

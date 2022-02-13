@@ -1,5 +1,5 @@
 use crate::columnar_2::rowblock::column_layout::ColumnSpliceError;
-use std::{convert::TryInto, ops::Range};
+use std::{borrow::Cow, convert::TryInto, ops::Range};
 
 use super::{RawDecoder, RawEncoder, RleDecoder, RleEncoder, Source};
 use crate::columnar_2::rowblock::value::PrimVal;
@@ -19,7 +19,7 @@ impl<'a> ValueDecoder<'a> {
         self.meta.done()
     }
 
-    pub(crate) fn next(&mut self) -> Option<PrimVal> {
+    pub(crate) fn next(&mut self) -> Option<PrimVal<'a>> {
         match self.meta.next() {
             Some(Some(next)) => {
                 let val_meta = ValueMeta::from(next);
@@ -40,8 +40,8 @@ impl<'a> ValueDecoder<'a> {
                     }
                     ValueType::String => {
                         let raw = self.raw.read_bytes(val_meta.length()).unwrap();
-                        let val = String::from_utf8(raw.to_vec()).unwrap();
-                        Some(PrimVal::String(val.into()))
+                        let val = Cow::Owned(std::str::from_utf8(raw).unwrap().into());
+                        Some(PrimVal::String(val))
                     }
                     ValueType::Float => {
                         assert!(val_meta.length() == 8);
@@ -77,7 +77,7 @@ impl<'a> ValueDecoder<'a> {
         }
     }
 
-    pub(crate) fn splice<'b, F: Fn(usize) -> Result<Option<&'b PrimVal>, ColumnSpliceError>>(
+    pub(crate) fn splice<'b, F: Fn(usize) -> Result<Option<PrimVal<'b>>, ColumnSpliceError>>(
         &mut self,
         out: &mut Vec<u8>,
         start: usize,
@@ -108,7 +108,7 @@ impl<'a> ValueDecoder<'a> {
         // Copy everything up to replace.start to the output
         while idx < replace.start {
             let val = meta_copy.next().unwrap_or(None);
-            meta_out.append(val);
+            meta_out.append(val.as_ref());
             idx += 1;
         }
         // Now step through replace, skipping our data and inserting the replacement data (if there
@@ -117,21 +117,21 @@ impl<'a> ValueDecoder<'a> {
             meta_copy.next();
             if let Some(val) = replace_with(i)? {
                 // Note that we are just constructing metadata values here.
-                let meta_val = ValueMeta::from(val).into();
+                let meta_val = &u64::from(ValueMeta::from(&val));
                 meta_out.append(Some(meta_val));
             }
             idx += 1;
         }
         // Copy any remaining input from the replacments to the output
         while let Some(val) = replace_with(idx - replace.start)? {
-            let meta_val = ValueMeta::from(val).into();
+            let meta_val = &u64::from(ValueMeta::from(&val));
             meta_out.append(Some(meta_val));
             idx += 1;
         }
         // Now copy any remaining data we have to the output
         while !meta_copy.done() {
             let val = meta_copy.next().unwrap_or(None);
-            meta_out.append(val);
+            meta_out.append(val.as_ref());
         }
         let meta_len = meta_out.finish();
         let meta_range = start..meta_len;
@@ -180,7 +180,7 @@ fn encode_primval(out: &mut RawEncoder, val: &PrimVal) -> usize {
         PrimVal::Uint(i) => out.append(i),
         PrimVal::Int(i) => out.append(i),
         PrimVal::Null => 0,
-        PrimVal::Bool(b) => 0,
+        PrimVal::Bool(_) => 0,
         PrimVal::Timestamp(i) => out.append(i),
         PrimVal::Float(f) => out.append(f),
         PrimVal::Counter(i) => out.append(i),
@@ -191,7 +191,7 @@ fn encode_primval(out: &mut RawEncoder, val: &PrimVal) -> usize {
 }
 
 impl<'a> Iterator for ValueDecoder<'a> {
-    type Item = PrimVal;
+    type Item = PrimVal<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         ValueDecoder::next(self)
@@ -243,8 +243,8 @@ impl ValueMeta {
     }
 }
 
-impl From<&PrimVal> for ValueMeta {
-    fn from(p: &PrimVal) -> Self {
+impl<'a> From<&PrimVal<'a>> for ValueMeta {
+    fn from(p: &PrimVal<'a>) -> Self {
         match p {
             PrimVal::Uint(i) => Self((ulebsize(*i) << 4) | 3),
             PrimVal::Int(i) => Self((lebsize(*i) << 4) | 4),
@@ -277,7 +277,7 @@ impl From<ValueMeta> for u64 {
     }
 }
 
-impl From<&PrimVal> for ValueType {
+impl<'a> From<&PrimVal<'a>> for ValueType {
     fn from(p: &PrimVal) -> Self {
         match p {
             PrimVal::Uint(_) => ValueType::Uleb,
@@ -349,18 +349,18 @@ mod tests {
             raw: RawDecoder::from(&[] as &[u8]),
         };
         let mut out = Vec::new();
-        let (meta_range, val_range) = decoder.splice(&mut out, 0, 0..0, |i| vals.get(i)).unwrap();
+        let (meta_range, val_range) = decoder.splice(&mut out, 0, 0..0, |i| Ok(vals.get(i).cloned())).unwrap();
         (meta_range, val_range, out)
     }
 
-    fn value() -> impl Strategy<Value = PrimVal> {
+    fn value() -> impl Strategy<Value = PrimVal<'static>> {
         prop_oneof! {
             Just(PrimVal::Null),
             any::<bool>().prop_map(|b| PrimVal::Bool(b)),
             any::<u64>().prop_map(|i| PrimVal::Uint(i)),
             any::<i64>().prop_map(|i| PrimVal::Int(i)),
             any::<f64>().prop_map(|f| PrimVal::Float(f)),
-            any::<String>().prop_map(|s| PrimVal::String(s.into())),
+            any::<String>().prop_map(|s| PrimVal::String(Cow::Owned(s.into()))),
             any::<Vec<u8>>().prop_map(|b| PrimVal::Bytes(b)),
             any::<u64>().prop_map(|i| PrimVal::Counter(i)),
             any::<u64>().prop_map(|i| PrimVal::Timestamp(i)),
@@ -370,9 +370,9 @@ mod tests {
 
     #[derive(Clone, Debug)]
     struct Scenario {
-        initial_values: Vec<PrimVal>,
+        initial_values: Vec<PrimVal<'static>>,
         replace_range: Range<usize>,
-        replacements: Vec<PrimVal>,
+        replacements: Vec<PrimVal<'static>>,
     }
 
     fn scenario() -> impl Strategy<Value = Scenario> {
@@ -435,7 +435,13 @@ mod tests {
                 raw: RawDecoder::from(&out[val_range]),
             };
             let mut spliced = Vec::new();
-            let (spliced_meta, spliced_val) = decoder.splice(&mut spliced, 0, scenario.replace_range.clone(), |i| scenario.replacements.get(i)).unwrap();
+            let (spliced_meta, spliced_val) = decoder
+                .splice(
+                    &mut spliced,
+                    0,
+                    scenario.replace_range.clone(),
+                    |i| Ok(scenario.replacements.get(i).cloned())
+                ).unwrap();
             let mut spliced_decoder = ValueDecoder{
                 meta: RleDecoder::from(&spliced[spliced_meta]),
                 raw: RawDecoder::from(&spliced[spliced_val]),

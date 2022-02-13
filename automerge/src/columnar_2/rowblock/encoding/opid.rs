@@ -53,7 +53,7 @@ impl<'a> OpIdEncoder<'a> {
                 self.ctr.append_null();
             },
             Some(opid) => {
-                self.actor.append_value(opid.actor() as u64);
+                self.actor.append_value(&(opid.actor() as u64));
                 self.ctr.append_value(opid.counter());
             }
         }

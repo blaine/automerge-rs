@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::borrow::{Cow, Borrow};
 
 use super::{Encodable, RawDecoder, Source, Sink};
 
@@ -104,9 +104,9 @@ impl<'a, 'b> Source for &'b mut BooleanDecoder<'a> {
 impl<'a> Sink for BooleanEncoder<'a> {
     type Item = bool;
 
-    fn append(&mut self, item: Option<Self::Item>) {
+    fn append<I: Borrow<Self::Item>>(&mut self, item: Option<I>) {
         match item {
-            Some(b) => BooleanEncoder::append(self, b),
+            Some(b) => BooleanEncoder::append(self, *b.borrow()),
             None => BooleanEncoder::append(self, false),
         }
     }

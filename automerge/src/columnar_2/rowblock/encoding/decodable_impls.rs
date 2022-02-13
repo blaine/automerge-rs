@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, str, io::Read};
+use std::{borrow::Cow, convert::TryFrom, str, io::Read};
 use smol_str::SmolStr;
 
 use super::Decodable;
@@ -113,6 +113,14 @@ impl Decodable for SmolStr {
     {
         let buffer = Vec::decode(bytes)?;
         str::from_utf8(&buffer).map(|t| t.into()).ok()
+    }
+}
+
+impl Decodable for Cow<'static, SmolStr> {
+    fn decode<R>(bytes: &mut R) -> Option<Self>
+    where
+            R: std::io::Read {
+        SmolStr::decode(bytes).map(|s| Cow::Owned(s))
     }
 }
 

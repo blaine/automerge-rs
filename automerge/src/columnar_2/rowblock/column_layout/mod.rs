@@ -10,5 +10,11 @@ pub(crate) use doc_op_columns::{DocOpColumns, Error as ParseDocColumnError};
 pub(crate) enum ColumnSpliceError {
     #[error("invalid value for row {0}")]
     InvalidValueForRow(usize),
+    #[error("wrong number of values for row {0}, expected {expected} but got {actual}")]
+    WrongNumberOfValues {
+        row: usize,
+        expected: usize,
+        actual: usize,
+    }
 }
 

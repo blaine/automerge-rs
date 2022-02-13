@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Debug, io::Write};
+use std::{borrow::Cow, fmt::Debug};
 
 use super::{Decodable, Encodable};
 

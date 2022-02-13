@@ -35,7 +35,7 @@ impl<'a> From<PrimVal<'a>> for ScalarValue {
             PrimVal::Uint(u) => Self::Uint(u),
             PrimVal::Int(i) => Self::Int(i),
             PrimVal::Float(f) => Self::F64(f),
-            PrimVal::String(s) => Self::Str(s.into()),
+            PrimVal::String(s) => Self::Str(s.into_owned()),
             PrimVal::Bytes(b) => Self::Bytes(b),
             PrimVal::Counter(c) => Self::Counter((c as i64).into()),
             PrimVal::Timestamp(t) => Self::Timestamp(t as i64),

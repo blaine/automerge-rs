@@ -3,6 +3,8 @@ mod rowblock;
 mod storage;
 pub(crate) use column_specification::{ColumnId, ColumnSpec};
 
+use std::borrow::Cow;
+
 pub fn do_the_thing(data: &[u8]) {
     match storage::Chunk::parse(data) {
         Ok((_, d)) => match d.typ() {
@@ -52,19 +54,22 @@ pub fn do_the_thing(data: &[u8]) {
 
 fn splice_generic_rowblock(block: &rowblock::RowBlock<rowblock::ColumnLayout>) {
     use rowblock::{PrimVal, CellValue};
-    let spliced = block.splice(2..2, |col_index, _| {
+    let spliced = block.splice(2..2, |col_index, row_index| {
+        if row_index > 0 {
+            return None;
+        }
         match col_index {
             0 => None,
             1 => None,
             2 => None,
             3 => None,
-            4 => Some(&CellValue::String("other".to_string())),
-            5 => Some(&CellValue::Uint(0)),
-            6 => Some(&CellValue::Uint(2)),
-            7 => Some(&CellValue::Bool(false)),
-            8 => Some(&CellValue::Uint(1)),
-            9 => Some(&CellValue::Value(PrimVal::Int(2))),
-            10 => Some(&CellValue::List(Vec::new())),
+            4 => Some(CellValue::String(Cow::Owned("other".to_string().into()))),
+            5 => Some(CellValue::Uint(0)),
+            6 => Some(CellValue::Uint(2)),
+            7 => Some(CellValue::Bool(false)),
+            8 => Some(CellValue::Uint(1)),
+            9 => Some(CellValue::Value(PrimVal::Int(2))),
+            10 => Some(CellValue::List(Vec::new())),
             _ => None, 
         }
     }).unwrap();
