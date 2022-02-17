@@ -1,6 +1,7 @@
 use std::{
     borrow::{Cow, Borrow},
     fmt::Debug,
+    ops::Range,
 };
 
 use super::{Encodable, Decodable, RawDecoder, Sink, Source};
@@ -30,9 +31,7 @@ where
         match self.take_state() {
             // this covers `only_nulls`
             RleState::NullRun(size) => {
-                if !self.buf.is_empty() {
-                    self.flush_null_run(size);
-                }
+                self.flush_null_run(size);
             }
             RleState::LoneVal(value) => self.flush_lit_run(vec![value]),
             RleState::Run(value, len) => self.flush_run(&value, len),
@@ -183,6 +182,34 @@ impl<'a, T> RleDecoder<'a, T> {
     }
 }
 
+impl<'a, T: Clone + Debug + Encodable + Decodable + Eq> RleDecoder<'a, T> {
+
+    pub(crate) fn splice<I: Iterator<Item=Option<T>>>(&mut self, replace: Range<usize>, mut replace_with: I, out: &mut Vec<u8>) -> usize {
+        let mut encoder = RleEncoder::new(out);
+        let mut idx = 0;
+        while idx < replace.start {
+            match self.next() {
+                Some(elem) => encoder.append(elem.as_ref()),
+                None => panic!("out of bounds"),
+            }
+            idx += 1;
+        }
+        for _ in 0..replace.len() {
+            self.next();
+            if let Some(next) = replace_with.next() {
+                encoder.append(next.as_ref());
+            }
+        }
+        while let Some(next) = replace_with.next() {
+            encoder.append(next.as_ref());
+        }
+        while let Some(next) = self.next() {
+            encoder.append(next.as_ref());
+        }
+        encoder.finish()
+    }
+}
+
 impl<'a, T> From<Cow<'a, [u8]>> for RleDecoder<'a, T> {
     fn from(bytes: Cow<'a, [u8]>) -> Self {
         RleDecoder {
@@ -261,6 +288,8 @@ where
 mod tests {
     use std::borrow::Cow;
     use super::*;
+    use proptest::prelude::*;
+    use super::super::properties::splice_scenario;
 
     #[test]
     fn rle_int_round_trip() {
@@ -299,5 +328,43 @@ mod tests {
         }
         let expected = [1,1,2,2,5,3,2,3,1,3];
         assert_eq!(result, expected);
+    }
+
+    fn encode<T: Clone + Encodable + PartialEq>(vals: &[Option<T>]) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(vals.len() * 3);
+        let mut encoder: RleEncoder<'_, T> = RleEncoder::new(&mut buf);
+        for val in vals {
+            encoder.append(val.as_ref())
+        }
+        encoder.finish();
+        buf
+    }
+
+    fn decode<T: Clone + Decodable + Debug>(buf: Vec<u8>) -> Vec<Option<T>> {
+        let decoder = RleDecoder::<'_, T>::from(&buf[..]);
+        decoder.collect()
+    }
+
+    #[test]
+    fn bad_splice() {
+        let buf = encode::<i32>(&vec![None]);
+        let mut decoder = RleDecoder::<'_, i32>::from(&buf[..]);
+        let mut out = Vec::new();
+        decoder.splice(0..0, Vec::new().into_iter(), &mut out);
+        let result = decode::<i32>(out);
+        assert_eq!(result, vec![None])
+    }
+
+
+    proptest!{
+        #[test]
+        fn splice_ints(scenario in splice_scenario(any::<Option<i32>>())) {
+            let buf = encode(&scenario.initial_values);
+            let mut decoder = RleDecoder::<'_, i32>::from(&buf[..]);
+            let mut out = Vec::new();
+            decoder.splice(scenario.replace_range.clone(), scenario.replacements.iter().cloned(), &mut out);
+            let result = decode::<i32>(out);
+            scenario.check(result)
+        }
     }
 }

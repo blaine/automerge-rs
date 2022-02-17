@@ -340,7 +340,7 @@ fn ulebsize(val: u64) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::columnar_2::rowblock::encoding::{RawDecoder, RleDecoder};
+    use crate::columnar_2::rowblock::encoding::{properties::splice_scenario, RawDecoder, RleDecoder};
     use proptest::prelude::*;
 
     fn encode_values(vals: &[PrimVal]) -> (Range<usize>, Range<usize>, Vec<u8>) {
@@ -349,11 +349,13 @@ mod tests {
             raw: RawDecoder::from(&[] as &[u8]),
         };
         let mut out = Vec::new();
-        let (meta_range, val_range) = decoder.splice(&mut out, 0, 0..0, |i| Ok(vals.get(i).cloned())).unwrap();
+        let (meta_range, val_range) = decoder
+            .splice(&mut out, 0, 0..0, |i| Ok(vals.get(i).cloned()))
+            .unwrap();
         (meta_range, val_range, out)
     }
 
-    fn value() -> impl Strategy<Value = PrimVal<'static>> {
+    fn value() -> impl Strategy<Value = PrimVal<'static>> + Clone {
         prop_oneof! {
             Just(PrimVal::Null),
             any::<bool>().prop_map(|b| PrimVal::Bool(b)),
@@ -366,50 +368,6 @@ mod tests {
             any::<u64>().prop_map(|i| PrimVal::Timestamp(i)),
             (10..15_u8, any::<Vec<u8>>()).prop_map(|(c, b)| PrimVal::Unknown { type_code: c, data: b }),
         }
-    }
-
-    #[derive(Clone, Debug)]
-    struct Scenario {
-        initial_values: Vec<PrimVal<'static>>,
-        replace_range: Range<usize>,
-        replacements: Vec<PrimVal<'static>>,
-    }
-
-    fn scenario() -> impl Strategy<Value = Scenario> {
-        (
-            proptest::collection::vec(value(), 0..100),
-            proptest::collection::vec(value(), 0..10),
-        )
-            .prop_flat_map(move |(values, to_splice)| {
-                if values.len() == 0 {
-                    Just(Scenario {
-                        initial_values: values.clone(),
-                        replace_range: 0..0,
-                        replacements: to_splice.clone(),
-                    })
-                    .boxed()
-                } else {
-                    // This is somewhat awkward to write because we have to carry the `values` and
-                    // `to_splice` through as `Just(..)` to please the borrow checker.
-                    (0..values.len(), Just(values), Just(to_splice))
-                        .prop_flat_map(move |(replace_range_start, values, to_splice)| {
-                            (
-                                0..(values.len() - replace_range_start),
-                                Just(values),
-                                Just(to_splice),
-                            )
-                                .prop_map(
-                                    move |(replace_range_len, values, to_splice)| Scenario {
-                                        initial_values: values.clone(),
-                                        replace_range: replace_range_start
-                                            ..(replace_range_start + replace_range_len),
-                                        replacements: to_splice.clone(),
-                                    },
-                                )
-                        })
-                        .boxed()
-                }
-            })
     }
 
     proptest! {
@@ -428,7 +386,7 @@ mod tests {
         }
 
         #[test]
-        fn test_splice_values(scenario in scenario()){
+        fn test_splice_values(scenario in splice_scenario(value())){
             let (meta_range, val_range, out) = encode_values(&scenario.initial_values);
             let mut decoder = ValueDecoder{
                 meta: RleDecoder::from(&out[meta_range]),

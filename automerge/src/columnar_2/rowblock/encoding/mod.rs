@@ -23,6 +23,9 @@ pub(crate) use key::KeyDecoder;
 mod interned_key;
 pub(crate) use interned_key::InternedKeyDecoder;
 
+#[cfg(test)]
+mod properties;
+
 
 
 pub(crate) trait Encodable {
