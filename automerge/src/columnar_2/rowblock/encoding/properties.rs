@@ -3,6 +3,12 @@
 use std::{fmt::Debug, ops::Range};
 
 use proptest::prelude::*;
+use smol_str::SmolStr;
+
+use crate::{
+    columnar_2::rowblock::row_ops::Key as RowOpKey,
+    types::{OpId, Key, ElemId}
+};
 
 #[derive(Clone, Debug)]
 pub(crate) struct SpliceScenario<T> {
@@ -58,4 +64,30 @@ pub(crate) fn splice_scenario<S: Strategy<Value = T> + Clone, T: Debug + Clone +
                     .boxed()
             }
         })
+}
+
+pub(crate) fn opid() -> impl Strategy<Value = OpId> + Clone {
+    (0..(i64::MAX as usize), 0..(i64::MAX as u64)).prop_map(|(actor, ctr)| OpId(ctr, actor))
+}
+
+pub(crate) fn elemid() -> impl Strategy<Value = ElemId> + Clone {
+    opid().prop_map(ElemId)
+}
+
+pub(crate) fn key() -> impl Strategy<Value = Key> + Clone {
+    prop_oneof!{
+        elemid().prop_map(Key::Seq),
+        (0..(i64::MAX as usize)).prop_map(Key::Map),
+    }
+}
+
+fn smol_str() -> impl Strategy<Value = SmolStr> + Clone {
+    any::<String>().prop_map(SmolStr::from)
+}
+
+pub(crate) fn row_op_key() -> impl Strategy<Value = RowOpKey> + Clone {
+    prop_oneof!{
+        elemid().prop_map(RowOpKey::Elem),
+        smol_str().prop_map(RowOpKey::Prop),
+    }
 }

@@ -49,7 +49,7 @@ impl<'a> SimpleColDecoder<'a> {
             Self::RleString(d) => d
                 .next()
                 .and_then(|s| s.map(|s| CellValue::String(Cow::Owned(s.into())))),
-            Self::Delta(d) => d.next().map(CellValue::Uint),
+            Self::Delta(d) => d.next().and_then(|i| i.map(CellValue::Uint)),
             Self::Bool(d) => d.next().map(CellValue::Bool),
         }
     }
@@ -91,7 +91,7 @@ impl<'a> SimpleColDecoder<'a> {
             Self::Delta(d) => {
                 let encoder = DeltaEncoder::from(out);
                 do_replace(d, encoder, replace, |i| match replace_with(i) {
-                    Some(CellValue::Uint(i)) => Ok(Some(i)),
+                    Some(CellValue::Uint(i)) => Ok(Some(Some(i))),
                     Some(_) => Err(ColumnSpliceError::InvalidValueForRow(i)),
                     None => Ok(None),
                 })

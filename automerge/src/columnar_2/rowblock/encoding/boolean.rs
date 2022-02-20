@@ -1,4 +1,4 @@
-use std::borrow::{Cow, Borrow};
+use std::{borrow::{Cow, Borrow}, ops::Range};
 
 use super::{Encodable, RawDecoder, Source, Sink};
 
@@ -60,6 +60,31 @@ impl<'a> BooleanDecoder<'a> {
     pub(crate) fn done(&self) -> bool {
         self.decoder.done()
     }
+
+    pub(crate) fn splice<I: Iterator<Item=bool>>(&mut self, replace: Range<usize>, mut replace_with: I, out: &mut Vec<u8>) -> usize {
+        let mut encoder = BooleanEncoder::new(out);
+        let mut idx = 0;
+        while idx < replace.start {
+            match self.next() {
+                Some(elem) => encoder.append(elem),
+                None => panic!("out of bounds"),
+            }
+            idx += 1;
+        }
+        for _ in 0..replace.len() {
+            self.next();
+            if let Some(next) = replace_with.next() {
+                encoder.append(next);
+            }
+        }
+        while let Some(next) = replace_with.next() {
+            encoder.append(next);
+        }
+        while let Some(next) = self.next() {
+            encoder.append(next);
+        }
+        encoder.finish()
+    }
 }
 
 impl<'a> From<Cow<'a, [u8]>> for BooleanDecoder<'a> {
@@ -114,4 +139,45 @@ impl<'a> Sink for BooleanEncoder<'a> {
     fn finish(self) -> usize {
         BooleanEncoder::finish(self)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::columnar_2::rowblock::encoding::properties::splice_scenario;
+
+    use proptest::prelude::*;
+
+    fn encode(vals: &[bool]) -> Vec<u8> {
+        let mut buf = Vec::new();
+        let mut encoder = BooleanEncoder::new(&mut buf);
+        for val in vals {
+            encoder.append(*val);
+        }
+        encoder.finish();
+        buf
+    }
+
+    fn decode(buf: &[u8]) -> Vec<bool> {
+        BooleanDecoder::from(buf).collect()
+    }
+
+    proptest!{
+        #[test]
+        fn encode_decode_bools(vals in proptest::collection::vec(any::<bool>(), 0..100)) {
+            assert_eq!(vals, decode(&encode(&vals)))
+        }
+
+        #[test]
+        fn splice_bools(scenario in splice_scenario(any::<bool>())) {
+            let encoded = encode(&scenario.initial_values);
+            let mut decoder = BooleanDecoder::from(&encoded[..]);
+            let mut out = Vec::new();
+            let len = decoder.splice(scenario.replace_range.clone(), scenario.replacements.iter().copied(), &mut out);
+            let result = decode(&out);
+            scenario.check(result);
+            assert_eq!(len, out.len());
+        }
+    }
+
 }

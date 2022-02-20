@@ -16,16 +16,18 @@ impl Encodable for SmolStr {
 impl<'a> Encodable for Cow<'a, SmolStr> {
     fn encode(&self, buf: &mut Vec<u8>) -> usize {
         let bytes = self.as_bytes();
-        buf.write_all(bytes).unwrap();
-        bytes.len()
+        let len_encoded = bytes.len().encode(buf);
+        let data_len = bytes.encode(buf);
+        len_encoded + data_len
     }
 }
 
 impl Encodable for String {
     fn encode(&self, buf: &mut Vec<u8>) ->usize {
         let bytes = self.as_bytes();
-        buf.write_all(bytes).unwrap();
-        bytes.len()
+        let len_encoded = bytes.len().encode(buf);
+        let data_len = bytes.encode(buf);
+        len_encoded + data_len
     }
 }
 

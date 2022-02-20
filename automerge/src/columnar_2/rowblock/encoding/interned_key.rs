@@ -32,8 +32,8 @@ impl<'a> Iterator for InternedKeyDecoder<'a> {
     fn next(&mut self) -> Option<Key> {
         match (self.actor.next(), self.ctr.next(), self.str_idx.next()) {
             (None, None, Some(Some(key_idx))) => Some(Key::Map(key_idx as usize)),
-            (None, Some(0), None) => Some(Key::Seq(ElemId(OpId(0, 0)))),
-            (Some(Some(actor)), Some(ctr), None) => Some(Key::Seq(OpId(actor, ctr as usize).into())),
+            (None, Some(Some(0)), None) => Some(Key::Seq(ElemId(OpId(0, 0)))),
+            (Some(Some(actor)), Some(Some(ctr)), None) => Some(Key::Seq(OpId(actor, ctr as usize).into())),
             // TODO: This should be fallible and throw here
             _ => None,
         }

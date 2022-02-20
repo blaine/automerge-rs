@@ -3,7 +3,7 @@ use smol_str::SmolStr;
 use crate::types::{ObjId, ElemId, OpId};
 use super::value::PrimVal;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Key {
     Prop(SmolStr),
     Elem(ElemId),

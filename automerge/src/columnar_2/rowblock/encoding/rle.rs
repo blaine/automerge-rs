@@ -345,17 +345,6 @@ mod tests {
         decoder.collect()
     }
 
-    #[test]
-    fn bad_splice() {
-        let buf = encode::<i32>(&vec![None]);
-        let mut decoder = RleDecoder::<'_, i32>::from(&buf[..]);
-        let mut out = Vec::new();
-        decoder.splice(0..0, Vec::new().into_iter(), &mut out);
-        let result = decode::<i32>(out);
-        assert_eq!(result, vec![None])
-    }
-
-
     proptest!{
         #[test]
         fn splice_ints(scenario in splice_scenario(any::<Option<i32>>())) {
@@ -364,6 +353,16 @@ mod tests {
             let mut out = Vec::new();
             decoder.splice(scenario.replace_range.clone(), scenario.replacements.iter().cloned(), &mut out);
             let result = decode::<i32>(out);
+            scenario.check(result)
+        }
+
+        #[test]
+        fn splice_strings(scenario in splice_scenario(any::<Option<String>>())) {
+            let buf = encode(&scenario.initial_values);
+            let mut decoder = RleDecoder::<'_, String>::from(&buf[..]);
+            let mut out = Vec::new();
+            decoder.splice(scenario.replace_range.clone(), scenario.replacements.iter().cloned(), &mut out);
+            let result = decode::<String>(out);
             scenario.check(result)
         }
     }
